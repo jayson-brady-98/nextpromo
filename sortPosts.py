@@ -33,9 +33,9 @@ def filter_sales_posts(posts):
         post_year = None
         if post_date_str != 'N/A':
             try:
-                post_date = datetime.strptime(post_date_str, '%Y-%m-%dT%H:%M:%S.%fZ')
+                post_date = datetime.fromisoformat(post_date_str.replace("Z", "+00:00"))
                 post_year = post_date.year
-                post_date_str = post_date.strftime('%Y-%m-%d')  # Format post_date as ISO 8601
+                post_date_str = post_date.strftime('%d-%m-%Y')  # Format post_date as DD-MM-YYYY
             except ValueError:
                 post_year = None
         
@@ -45,23 +45,24 @@ def filter_sales_posts(posts):
             date_match = re.search(pattern, post['caption'])
             if date_match:
                 sale_date_str = date_match.group()
-                # Remove ordinal suffixes from the day
-                sale_date_str = re.sub(r'(\d{1,2})(st|nd|rd|th)', r'\1', sale_date_str)
                 # If the date is in "Month Day" or "Day Month" format, append the year
-                month_match = re.search(r'(January|February|March|April|May|June|July|August|September|October|November|December)', sale_date_str)
-                if month_match:
+                if re.search(r'(January|February|March|April|May|June|July|August|September|October|November|December)', sale_date_str):
                     if post_year:
                         # Determine the correct year
-                        sale_month = datetime.strptime(month_match.group(), '%B').month
+                        sale_month_name = sale_date_str.split()[1]  # Assuming the month is the second word
+                        try:
+                            sale_month = datetime.strptime(sale_month_name, '%B').month
+                        except ValueError:
+                            # Handle the error or log it
+                            print(f"Invalid month name: {sale_month_name}")
+                            sale_month = None  # or some default value
                         if sale_month == 1 and post_date.month == 12:
                             sale_year = post_year + 1
                         else:
                             sale_year = post_year
-                        # Parse and format the sale date as ISO 8601
-                        try:
-                            sale_date = datetime.strptime(f"{sale_date_str} {sale_year}", '%d %B %Y').strftime('%Y-%m-%d')
-                        except ValueError:
-                            sale_date = 'N/A'
+                        sale_date_str = sale_date_str.replace('st', '').replace('nd', '').replace('rd', '').replace('th', '')
+                        sale_date_obj = parse_date(sale_date_str, sale_year)
+                        sale_date = sale_date_obj.strftime('%d-%m-%Y')
                 else:
                     sale_date = sale_date_str
                 break
@@ -71,9 +72,7 @@ def filter_sales_posts(posts):
             'caption': post['caption'],
             'post_date': post_date_str,
             'sale_date': sale_date,
-            'sale_discount': re.search(r'\b\d+% off\b', post['caption']).group() if re.search(r'\b\d+% off\b', post['caption']) else 'N/A',
-            'url': post.get('url', 'N/A'),  # Include the URL from the dataset
-            'company_name': 'Gymshark'  # Include the company name
+            'sale_discount': re.search(r'\b\d+% off\b', post['caption']).group().replace(' off', '') if re.search(r'\b\d+% off\b', post['caption']) else 'N/A'
         }
         result.append(sale_info)
     
@@ -89,10 +88,21 @@ def read_posts_from_csv(file_path):
                 'id': row.get('id', 'N/A'),  # Assuming there's an 'id' column
                 'caption': row['caption'],
                 'permalink': row.get('permalink', 'N/A'),  # Assuming there's a 'permalink' column
-                'post_date': row.get('timestamp', 'N/A'),  # Use 'timestamp' column for post_date
-                'url': row.get('url', 'N/A')  # Assuming there's a 'url' column
+                'post_date': row.get('timestamp', 'N/A')  # Use 'timestamp' column for post_date
             })
     return posts
+
+def parse_date(date_str, year=None):
+    formats = ['%B %d %Y', '%d %B %Y', '%d-%m-%Y', '%m-%d-%Y']
+    if year:
+        date_str = f"{date_str} {year}"
+    
+    for fmt in formats:
+        try:
+            return datetime.strptime(date_str, fmt)
+        except ValueError:
+            continue
+    raise ValueError(f"Date string '{date_str}' does not match any expected format")
 
 # Example usage:
 file_path = 'Instagram Scraper Dataset Nov 26 2024.csv'
