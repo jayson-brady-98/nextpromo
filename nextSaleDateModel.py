@@ -4,6 +4,7 @@ from datetime import datetime
 from statsmodels.tsa.arima.model import ARIMA
 from datetime import timedelta
 from sortPosts import filter_sales_posts, read_posts_from_csv
+from statsmodels.tsa.seasonal import seasonal_decompose
 
 def predict_next_sale_date(sales_info):
     # Extract valid sale dates
@@ -32,7 +33,25 @@ def predict_next_sale_date(sales_info):
     last_sale_date = valid_sale_dates[-1]
     next_sale_date = last_sale_date + pd.Timedelta(days=int(average_interval))
     
+    # Check for Black Friday
+    current_year = datetime.now().year
+    black_friday = calculate_black_friday(current_year)
+    if black_friday > last_sale_date and black_friday < next_sale_date:
+        next_sale_date = black_friday
+    
+    # Check if the predicted sale date is today
+    today = datetime.now().date()
+    if next_sale_date.date() == today:
+        return "Gymshark is currently running a sale."
+    
     return next_sale_date.strftime('%d-%m-%Y')
+
+def calculate_black_friday(year):
+    # Black Friday is the day after the fourth Thursday in November
+    november_first = datetime(year, 11, 1)
+    first_thursday = november_first + timedelta(days=(3 - november_first.weekday() + 7) % 7)
+    black_friday = first_thursday + timedelta(weeks=3, days=1)
+    return black_friday
 
 def main():
     # Read posts from CSV and filter for sales information
