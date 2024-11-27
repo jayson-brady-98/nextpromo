@@ -35,6 +35,7 @@ def filter_sales_posts(posts):
             try:
                 post_date = datetime.strptime(post_date_str, '%Y-%m-%dT%H:%M:%S.%fZ')
                 post_year = post_date.year
+                post_date_str = post_date.strftime('%Y-%m-%d')  # Format post_date as ISO 8601
             except ValueError:
                 post_year = None
         
@@ -44,6 +45,8 @@ def filter_sales_posts(posts):
             date_match = re.search(pattern, post['caption'])
             if date_match:
                 sale_date_str = date_match.group()
+                # Remove ordinal suffixes from the day
+                sale_date_str = re.sub(r'(\d{1,2})(st|nd|rd|th)', r'\1', sale_date_str)
                 # If the date is in "Month Day" or "Day Month" format, append the year
                 month_match = re.search(r'(January|February|March|April|May|June|July|August|September|October|November|December)', sale_date_str)
                 if month_match:
@@ -54,7 +57,11 @@ def filter_sales_posts(posts):
                             sale_year = post_year + 1
                         else:
                             sale_year = post_year
-                        sale_date = f"{sale_date_str} {sale_year}"
+                        # Parse and format the sale date as ISO 8601
+                        try:
+                            sale_date = datetime.strptime(f"{sale_date_str} {sale_year}", '%d %B %Y').strftime('%Y-%m-%d')
+                        except ValueError:
+                            sale_date = 'N/A'
                 else:
                     sale_date = sale_date_str
                 break
