@@ -19,15 +19,12 @@ def filter_sales_posts(posts):
         r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b'  # Numeric dates
     ]
     
-    # Filter posts that mention sales
-    sales_posts = [
-        post for post in posts 
-        if any(re.search(keyword, post['caption'].lower()) for keyword in sale_keywords)
-    ]
-    
-    # Extract sale details from filtered posts
+    # Extract sale details from posts
     result = []
-    for post in sales_posts:
+    for post in posts:
+        # Check if the post mentions sales
+        is_sale_post = any(re.search(keyword, post['caption'].lower()) for keyword in sale_keywords)
+        
         # Extract the year from the post_date
         post_date_str = post.get('post_date', 'N/A')
         post_year = None
@@ -39,40 +36,50 @@ def filter_sales_posts(posts):
             except ValueError:
                 post_year = None
         
-        # Find the sale date in the caption
+        # Initialize sale_date and sale_discount
         sale_date = 'N/A'
-        for pattern in date_patterns:
-            date_match = re.search(pattern, post['caption'])
-            if date_match:
-                sale_date_str = date_match.group()
-                # If the date is in "Month Day" or "Day Month" format, append the year
-                if re.search(r'(January|February|March|April|May|June|July|August|September|October|November|December)', sale_date_str):
-                    if post_year:
-                        # Determine the correct year
-                        sale_month_name = sale_date_str.split()[1]  # Assuming the month is the second word
-                        try:
-                            sale_month = datetime.strptime(sale_month_name, '%B').month
-                        except ValueError:
-                            # Handle the error or log it
-                            print(f"Invalid month name: {sale_month_name}")
-                            sale_month = None  # or some default value
-                        if sale_month == 1 and post_date.month == 12:
-                            sale_year = post_year + 1
-                        else:
-                            sale_year = post_year
-                        sale_date_str = sale_date_str.replace('st', '').replace('nd', '').replace('rd', '').replace('th', '')
-                        sale_date_obj = parse_date(sale_date_str, sale_year)
-                        sale_date = sale_date_obj.strftime('%d-%m-%Y')
-                else:
-                    sale_date = sale_date_str
-                break
+        sale_discount = 'N/A'
+        
+        if is_sale_post:
+            # Find the sale date in the caption
+            for pattern in date_patterns:
+                date_match = re.search(pattern, post['caption'])
+                if date_match:
+                    sale_date_str = date_match.group()
+                    # If the date is in "Month Day" or "Day Month" format, append the year
+                    if re.search(r'(January|February|March|April|May|June|July|August|September|October|November|December)', sale_date_str):
+                        if post_year:
+                            # Determine the correct year
+                            sale_month_name = sale_date_str.split()[1]  # Assuming the month is the second word
+                            try:
+                                sale_month = datetime.strptime(sale_month_name, '%B').month
+                            except ValueError:
+                                # Handle the error or log it
+                                print(f"Invalid month name: {sale_month_name}")
+                                sale_month = None  # or some default value
+                            if sale_month == 1 and post_date.month == 12:
+                                sale_year = post_year + 1
+                            else:
+                                sale_year = post_year
+                            sale_date_str = sale_date_str.replace('st', '').replace('nd', '').replace('rd', '').replace('th', '')
+                            sale_date_obj = parse_date(sale_date_str, sale_year)
+                            sale_date = sale_date_obj.strftime('%d-%m-%Y')
+                    else:
+                        sale_date = sale_date_str
+                    break
+            
+            # Extract sale discount
+            sale_discount_match = re.search(r'\b\d+% off\b', post['caption'])
+            if sale_discount_match:
+                sale_discount = sale_discount_match.group().replace(' off', '')
         
         sale_info = {
             'id': post.get('id', 'N/A'),
             'caption': post['caption'],
             'post_date': post_date_str,
             'sale_date': sale_date,
-            'sale_discount': re.search(r'\b\d+% off\b', post['caption']).group().replace(' off', '') if re.search(r'\b\d+% off\b', post['caption']) else 'N/A'
+            'sale_discount': sale_discount,
+            'is_sale_post': is_sale_post
         }
         result.append(sale_info)
     
