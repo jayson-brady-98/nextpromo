@@ -1,6 +1,7 @@
 import csv
 import re
 import json
+from datetime import datetime
 
 # Function to filter Instagram posts for sales information
 def filter_sales_posts(posts):
@@ -9,6 +10,13 @@ def filter_sales_posts(posts):
         'sale', 'discount', '% off', 'clearance',
         'deal', 'code', 'promotion', 'promo', 
         'offer'
+    ]
+    
+    # Regex patterns for date extraction
+    date_patterns = [
+        r'\b(?:\d{1,2}(?:st|nd|rd|th)? )?(January|February|March|April|May|June|July|August|September|October|November|December) \d{1,2}(?:st|nd|rd|th)?\b',  # Month name dates with day
+        r'\b\d{1,2}(?:st|nd|rd|th)? (January|February|March|April|May|June|July|August|September|October|November|December)\b',  # Day before month
+        r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b'  # Numeric dates
     ]
     
     # Filter posts that mention sales
@@ -20,11 +28,42 @@ def filter_sales_posts(posts):
     # Extract sale details from filtered posts
     result = []
     for post in sales_posts:
+        # Extract the year from the post_date
+        post_date_str = post.get('post_date', 'N/A')
+        post_year = None
+        if post_date_str != 'N/A':
+            try:
+                post_date = datetime.strptime(post_date_str, '%Y-%m-%dT%H:%M:%S.%fZ')
+                post_year = post_date.year
+            except ValueError:
+                post_year = None
+        
+        # Find the sale date in the caption
+        sale_date = 'N/A'
+        for pattern in date_patterns:
+            date_match = re.search(pattern, post['caption'])
+            if date_match:
+                sale_date_str = date_match.group()
+                # If the date is in "Month Day" or "Day Month" format, append the year
+                month_match = re.search(r'(January|February|March|April|May|June|July|August|September|October|November|December)', sale_date_str)
+                if month_match:
+                    if post_year:
+                        # Determine the correct year
+                        sale_month = datetime.strptime(month_match.group(), '%B').month
+                        if sale_month == 1 and post_date.month == 12:
+                            sale_year = post_year + 1
+                        else:
+                            sale_year = post_year
+                        sale_date = f"{sale_date_str} {sale_year}"
+                else:
+                    sale_date = sale_date_str
+                break
+        
         sale_info = {
             'id': post.get('id', 'N/A'),
             'caption': post['caption'],
-            'post_date': post.get('post_date', 'N/A'),
-            'sale_date': re.search(r'\b\d{1,2}/\d{1,2}/\d{2,4}\b', post['caption']).group() if re.search(r'\b\d{1,2}/\d{1,2}/\d{2,4}\b', post['caption']) else 'N/A',
+            'post_date': post_date_str,
+            'sale_date': sale_date,
             'sale_discount': re.search(r'\b\d+% off\b', post['caption']).group() if re.search(r'\b\d+% off\b', post['caption']) else 'N/A'
         }
         result.append(sale_info)
