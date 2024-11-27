@@ -64,7 +64,9 @@ def filter_sales_posts(posts):
             'caption': post['caption'],
             'post_date': post_date_str,
             'sale_date': sale_date,
-            'sale_discount': re.search(r'\b\d+% off\b', post['caption']).group() if re.search(r'\b\d+% off\b', post['caption']) else 'N/A'
+            'sale_discount': re.search(r'\b\d+% off\b', post['caption']).group() if re.search(r'\b\d+% off\b', post['caption']) else 'N/A',
+            'url': post.get('url', 'N/A'),  # Include the URL from the dataset
+            'company_name': 'Gymshark'  # Include the company name
         }
         result.append(sale_info)
     
@@ -80,7 +82,8 @@ def read_posts_from_csv(file_path):
                 'id': row.get('id', 'N/A'),  # Assuming there's an 'id' column
                 'caption': row['caption'],
                 'permalink': row.get('permalink', 'N/A'),  # Assuming there's a 'permalink' column
-                'post_date': row.get('timestamp', 'N/A')  # Use 'timestamp' column for post_date
+                'post_date': row.get('timestamp', 'N/A'),  # Use 'timestamp' column for post_date
+                'url': row.get('url', 'N/A')  # Assuming there's a 'url' column
             })
     return posts
 
