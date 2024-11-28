@@ -64,4 +64,4 @@ def main():
     print(f"Predicted next sale date: {next_sale}")
 
 if __name__ == "__main__":
-    main()
+    main() 
