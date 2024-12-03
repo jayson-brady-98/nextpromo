@@ -1,6 +1,5 @@
 import csv
 import re
-import json
 from datetime import datetime
 
 # Function to filter Instagram posts for sales information
@@ -74,12 +73,12 @@ def filter_sales_posts(posts):
                 sale_discount = sale_discount_match.group().replace(' off', '')
         
         sale_info = {
-            'id': post.get('id', 'N/A'),
             'caption': post['caption'],
             'post_date': post_date_str,
             'sale_date': sale_date,
             'sale_discount': sale_discount,
-            'is_sale_post': is_sale_post
+            'is_sale_post': is_sale_post,
+            'brand': 'gymshark'
         }
         result.append(sale_info)
     
@@ -116,6 +115,19 @@ file_path = 'Instagram Scraper Dataset Nov 26 2024.csv'
 instagram_posts = read_posts_from_csv(file_path)
 sales_info = filter_sales_posts(instagram_posts)
 
-# Convert to JSON string
-sales_info_json = json.dumps(sales_info, indent=4)
-print(sales_info_json)
+# Remove ID field from each dictionary in sales_info
+for post in sales_info:
+    if 'id' in post:
+        del post['id']
+
+# Save to CSV file
+output_file = 'gymshark_sales_data.csv'
+with open(output_file, 'w', newline='', encoding='utf-8') as f:
+    writer = csv.DictWriter(f, fieldnames=[
+        'caption', 'post_date', 'sale_date', 
+        'sale_discount', 'is_sale_post', 'brand'
+    ])
+    writer.writeheader()
+    writer.writerows(sales_info)
+
+print(f"Data has been saved to {output_file}")
