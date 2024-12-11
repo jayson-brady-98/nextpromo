@@ -25,7 +25,8 @@ def filter_sales_posts(posts):
     # Add sitewide patterns
     sitewide_patterns = [
         r'(?i)\bsitewide\b',
-        r'(?i)\d+%\s+off\s+everything\b'
+        r'(?i)\d+%\s+off\s+everything\b',
+        r'(?i)\bentire\s+site\b'
     ]
     
     # Add event patterns
@@ -129,22 +130,30 @@ def filter_sales_posts(posts):
         
         # Check for specific events only if it's a sale post
         if is_sale_post:
-            for pattern in event_patterns:
-                event_match = re.search(pattern, post['caption'].lower())
-                if event_match:
-                    event_name = event_match.group().title()  # Capitalize event name
-                    # Check if the event is plausible based on the post date
-                    if event_name == "Christmas" and (post_date.month != 12 or post_date.day < 11 or post_date.day > 25):
-                        continue
-                    if event_name == "Black Friday" and (
-                        (post_date.month != 11 and post_date.month != 12) or 
-                        (post_date.month == 11 and post_date.day < 17) or  # Week before Black Friday
-                        (post_date.month == 12 and post_date.day > 7)  # First week of December
-                    ):
-                        continue
-                    # Add more conditions for other events if necessary
-                    event = event_name
-                    break
+            # First check for EOFY Sale based on date
+            if post_date_str != 'N/A':
+                post_date = datetime.strptime(post_date_str, '%d-%m-%Y')
+                if (post_date.month == 6 and post_date.day >= 25) or (post_date.month == 7 and post_date.day <= 7):
+                    event = "EOFY Sale"
+            
+            # Only check other events if it's not already marked as EOFY Sale
+            if event == 'N/A':
+                for pattern in event_patterns:
+                    event_match = re.search(pattern, post['caption'].lower())
+                    if event_match:
+                        event_name = event_match.group().title()
+                        # Check if the event is plausible based on the post date
+                        if event_name == "Christmas" and (post_date.month != 12 or post_date.day < 11 or post_date.day > 25):
+                            continue
+                        if event_name == "Black Friday" and (
+                            (post_date.month != 11 and post_date.month != 12) or 
+                            (post_date.month == 11 and post_date.day < 17) or  # Week before Black Friday
+                            (post_date.month == 12 and post_date.day > 7)  # First week of December
+                        ):
+                            continue
+                        # Add more conditions for other events if necessary
+                        event = event_name
+                        break
         
         sale_info = {
             'caption': post['caption'],
