@@ -6,25 +6,43 @@ from datetime import datetime
 def filter_sales_posts(posts):
     # More specific sale-related patterns using regex
     sale_patterns = [
-        r'\b(?:flash |huge |big )?sale\b',  # "sale" with optional prefixes
-        r'\b\d+%\s*off\b',  # percentage discounts
-        r'\bclearance\b',
-        r'\bpromo(?:tion)?\s+code[:\s]\s*[A-Z0-9]+\b',  # promo codes with actual code
-        r'\bspecial\s+offer\b',
-        r'\bdiscount\s+(?:code|price)',
-        r'\bdeals?\s+(?:of|this|today)\b'  # deals with qualifying words
+        r'(?i)\b(?:flash |huge |big )?sale\b',  # "sale" with optional prefixes
+        r'(?i)\b\d+%\s*off\b',  # percentage discounts
+        r'(?i)\bclearance\b',
+        r'(?i)\bpromo(?:tion)?\s+code[:\s]\s*[A-Z0-9]+\b',  # promo codes with actual code
+        r'(?i)\bspecial\s+offer\b',
+        r'(?i)\bdiscount\s+(?:code|price)',
+        r'(?i)\bdeals?\b',  # Match "deals" on its own
+        r'(?i)\bcyber\s+monday\b'  # Match "cyber monday" on its own
     ]
     
     date_patterns = [
-        r'\b(?:\d{1,2}(?:st|nd|rd|th|ST|ND|RD|TH)? )?(January|February|March|April|May|June|July|August|September|October|November|December) \d{1,2}(?:st|nd|rd|th|ST|ND|RD|TH)?\b',
-        r'\b\d{1,2}(?:st|nd|rd|th|ST|ND|RD|TH)? (January|February|March|April|May|June|July|August|September|October|November|December)\b',
-        r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b'
+        r'(?i)\b(?:\d{1,2}(?:st|nd|rd|th)? )?(January|February|March|April|May|June|July|August|September|October|November|December) \d{1,2}(?:st|nd|rd|th)?\b',
+        r'(?i)\b\d{1,2}(?:st|nd|rd|th)? (January|February|March|April|May|June|July|August|September|October|November|December)\b',
+        r'(?i)\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b'
     ]
     
     # Add sitewide patterns
     sitewide_patterns = [
         r'(?i)\bsitewide\b',
         r'(?i)\d+%\s+off\s+everything\b'
+    ]
+    
+    # Add event patterns
+    event_patterns = [
+        r'(?i)\bblack\s+friday\b',
+        r'(?i)\bcyber\s+monday\b',
+        r'(?i)\bchristmas(?:\s+day)?\b',
+        r'(?i)\bafterp(?:ay)?\s+day\b',
+        r'(?i)\bboxing\s+day\b',
+        r'(?i)\bmother(?:\'s)?\s+day\b',
+        r'(?i)\bfather(?:\'s)?\s+day\b',
+        r'(?i)\beaster\b',
+        r'(?i)\bvalentine(?:\'s)?\s+day\b',
+        r'(?i)\bsingles\s+day\b',
+        r'(?i)\bmarch\s+madness\b',
+        r'(?i)\beo?fy\b',  # Matches both EOFY and end of financial year
+        r'(?i)\bend\s+of\s+financial\s+year\b'
     ]
     
     # Extract sale details from posts
@@ -106,6 +124,28 @@ def filter_sales_posts(posts):
         else:
             is_sitewide = False
         
+        # Initialize event
+        event = 'N/A'
+        
+        # Check for specific events only if it's a sale post
+        if is_sale_post:
+            for pattern in event_patterns:
+                event_match = re.search(pattern, post['caption'].lower())
+                if event_match:
+                    event_name = event_match.group().title()  # Capitalize event name
+                    # Check if the event is plausible based on the post date
+                    if event_name == "Christmas" and (post_date.month != 12 or post_date.day < 11 or post_date.day > 25):
+                        continue
+                    if event_name == "Black Friday" and (
+                        (post_date.month != 11 and post_date.month != 12) or 
+                        (post_date.month == 11 and post_date.day < 17) or  # Week before Black Friday
+                        (post_date.month == 12 and post_date.day > 7)  # First week of December
+                    ):
+                        continue
+                    # Add more conditions for other events if necessary
+                    event = event_name
+                    break
+        
         sale_info = {
             'caption': post['caption'],
             'post_date': post_date_str,
@@ -116,7 +156,8 @@ def filter_sales_posts(posts):
             'brand': post['brand'],
             'likesCount': post.get('likesCount', '0'),
             'commentsCount': post.get('commentsCount', '0'),
-            'url': post.get('url', 'N/A')
+            'url': post.get('url', 'N/A'),
+            'event': event  # Add event to the sale_info dictionary
         }
         result.append(sale_info)
     
@@ -188,7 +229,7 @@ with open(output_file, 'w', newline='', encoding='utf-8') as f:
     writer = csv.DictWriter(f, fieldnames=[
         'brand', 'caption', 'post_date', 'y', 'sale_date', 
         'sale_discount', 'sitewide', 'likesCount', 'commentsCount',
-        'url'
+        'url', 'event'  # Include event in the CSV header
     ])
     writer.writeheader()
     writer.writerows(sales_info)
