@@ -1,7 +1,7 @@
 import pandas as pd
 from prophet import Prophet
 
-data = pd.read_csv('preppedGymsharkDataset.csv')
+data = pd.read_csv('terra-tonics/preppedTerratonicsDataset.csv')
 data = {
     'ds': pd.to_datetime(data['post_date'], format='%d-%m-%Y'),
     'y': data['y'].astype(int),
@@ -19,6 +19,10 @@ model.fit(df)
 future = model.make_future_dataframe(periods=365)  # Generate future dates
 forecast = model.predict(future)
 
-# Save predictions to a CSV
-forecast[['ds', 'yhat']].to_csv('gymsharkPrediction.csv', index=False)
-print("Predictions saved to gymsharkPrediction.csv")
+# Extract brand name from input filename
+input_file = 'terra-tonics/preppedTerratonicsDataset.csv'
+brand_name = input_file.split('prepped')[1].split('Dataset')[0]
+
+# Save predictions to a CSV using the extracted brand name in camelCase
+forecast[['ds', 'yhat']].to_csv(f'{brand_name.lower()}Prediction.csv', index=False)
+print(f"Predictions saved to {brand_name.lower()}Prediction.csv")

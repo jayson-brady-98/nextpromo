@@ -206,7 +206,7 @@ def parse_date(date_str, year=None):
     raise ValueError(f"Date string '{date_str}' does not match any expected format")
 
 # Example usage:
-file_path = 'gymsharkDataset.csv'
+file_path = './terra-tonics/terratonicsDataset.csv'
 instagram_posts = read_posts_from_csv(file_path)
 sales_info = filter_sales_posts(instagram_posts)
 
