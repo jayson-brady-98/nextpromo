@@ -48,6 +48,18 @@ def filter_sales_posts(posts):
         r'(?i)\bend\s+of\s+financial\s+year\b'
     ]
     
+    # Add this pattern near the top with other patterns
+    sale_end_patterns = [
+        r'(?i)(?:sale|offer|deal|competition|promo(?:tion)?|discount|special)s?\s+ends?\s+(?:at|on)?\b',
+        r'(?i)ends?\s+(?:on|at)?\b',
+        r'(?i)valid\s+(?:until|till)\b',
+        r'(?i)available\s+(?:until|till)\b',
+        r'(?i)closing\s+(?:on|at)?\b',
+        r'(?i)last\s+day\b',
+        r'(?i)until\s+(?:midnight|noon)\b',
+        r'(?i)expires?\s+(?:on|at)?\b'
+    ]
+    
     # Extract sale details from posts
     result = []
     for post in posts:
@@ -59,59 +71,79 @@ def filter_sales_posts(posts):
         post_year = None
         if post_date_str != 'N/A':
             try:
-                post_date = datetime.fromisoformat(post_date_str.replace("Z", "+00:00"))
+                # First check if the date is in DD-MM-YYYY format
+                if re.match(r'\d{2}-\d{2}-\d{4}', post_date_str):
+                    post_date = datetime.strptime(post_date_str, '%d-%m-%Y')
+                else:
+                    # Try ISO format
+                    post_date = datetime.fromisoformat(post_date_str.replace("Z", "+00:00"))
                 post_year = post_date.year
                 post_date_str = post_date.strftime('%d-%m-%Y')  # Format post_date as DD-MM-YYYY
             except ValueError:
                 post_year = None
         
         # Initialize sale_date and sale_discount
-        sale_date = 'N/A'
-        sale_discount = 'N/A'
+        sale_date = ''
+        sale_discount = ''
+        date_found = False
         
         if is_sale_post:
             # Check for "current sale" indicators
-            current_sale_patterns = [
+            sale_timing_patterns = [
+                # Current sale patterns
                 r'\b(?:now|currently|today)\b',
                 r'\bon\s+now\b',
                 r'\bhappening\s+now\b',
-                r'\bgoing\s+on\b'
+                r'\bgoing\s+on\b',
+                # Future sale patterns
+                r'\b(?:sale|deals?).*?\b(?:starts?|beginning|coming)\s+soon\b',
+                r'\b(?:starts?|beginning|coming)\s+soon.*?\b(?:sale|deals?)\b',
+                r'\bupcoming\s+(?:sale|deals?)\b',
+                r'\b(?:sale|deals?)\s+(?:season|period)\s+(?:starts?|beginning|coming)\s+soon\b'
             ]
             
-            is_current_sale = any(re.search(pattern, post['caption'].lower()) for pattern in current_sale_patterns)
+            is_current_sale = any(re.search(pattern, post['caption'].lower()) for pattern in sale_timing_patterns[:4])  # First 4 patterns
+            is_future_sale = any(re.search(pattern, post['caption'].lower()) for pattern in sale_timing_patterns[4:])   # Remaining patterns
             
-            # Find the sale date in the caption
-            date_found = False
-            for pattern in date_patterns:
-                date_match = re.search(pattern, post['caption'])
-                if date_match:
-                    sale_date_str = date_match.group()
-                    # If the date is in "Month Day" or "Day Month" format
-                    if re.search(r'(January|February|March|April|May|June|July|August|September|October|November|December)', sale_date_str):
-                        if post_year:
-                            # Remove date suffixes (both lower and uppercase)
-                            sale_date_str = re.sub(r'(?i)(st|nd|rd|th)\b', '', sale_date_str).strip()
-                            # Find the month name in the string
-                            month_match = re.search(r'(January|February|March|April|May|June|July|August|September|October|November|December)', sale_date_str)
-                            if month_match:
-                                sale_month_name = month_match.group(1)
-                                try:
-                                    sale_month = datetime.strptime(sale_month_name, '%B').month
-                                except ValueError:
-                                    print(f"Invalid month name: {sale_month_name}")
-                                    continue
-
-                            if sale_month == 1 and post_date.month == 12:
-                                sale_year = post_year + 1
-                            else:
-                                sale_year = post_year
-                            sale_date_str = sale_date_str.replace('st', '').replace('nd', '').replace('rd', '').replace('th', '')
-                            sale_date_obj = parse_date(sale_date_str, sale_year)
-                            sale_date = sale_date_obj.strftime('%d-%m-%Y')
-                    else:
-                        sale_date = sale_date_str
-                    date_found = True
-                    break
+            # First check if it's a future sale
+            if is_future_sale:
+                # Look for DD/MM or MM/DD formatted dates
+                date_matches = re.finditer(r'\b\d{1,2}[/-]\d{1,2}\b', post['caption'])
+                if re.match(r'\d{2}-\d{2}-\d{4}', post_date_str):
+                    post_date = datetime.strptime(post_date_str, '%d-%m-%Y')
+                else:
+                    post_date = datetime.fromisoformat(post_date_str.replace("Z", "+00:00"))
+                
+                for match in date_matches:
+                    potential_date = match.group()
+                    parsed_date = parse_ambiguous_date(potential_date, post_date)
+                    
+                    if parsed_date:
+                        # Validate that this date is in the future relative to the post
+                        if parsed_date > post_date:
+                            sale_date = parsed_date.strftime('%d-%m-%Y')
+                            date_found = True
+                            break
+            
+            # If no future date was found, continue with existing date pattern matching...
+            if not date_found:
+                for pattern in date_patterns:
+                    date_match = re.search(pattern, post['caption'])
+                    if date_match:
+                        sale_date_str = date_match.group()
+                        
+                        # Get the text before the date match, including more context
+                        text_before_date = post['caption'][:date_match.end()].lower()
+                        
+                        # More strict check for end date indicators
+                        is_end_date = any(re.search(end_pattern, text_before_date) 
+                                        for end_pattern in sale_end_patterns)
+                        
+                        # If it's a current sale and this is an end date, skip it and use post date
+                        if is_end_date and is_current_sale:
+                            sale_date = post_date_str
+                            date_found = True
+                            break
             
             # If no date was found or it's a current sale, use post date
             if (not date_found or is_current_sale or sale_date == 'N/A') and post_date_str != 'N/A':
@@ -128,7 +160,7 @@ def filter_sales_posts(posts):
             is_sitewide = False
         
         # Initialize event
-        event = 'N/A'
+        event = ''
         
         # Check for specific events only if it's a sale post
         if is_sale_post:
@@ -139,7 +171,7 @@ def filter_sales_posts(posts):
                     event = "EOFY Sale"
             
             # Only check other events if it's not already marked as EOFY Sale
-            if event == 'N/A':
+            if event == '':
                 for pattern in event_patterns:
                     event_match = re.search(pattern, post['caption'].lower())
                     if event_match:
@@ -243,6 +275,42 @@ def normalize_month_name(date_str):
                 break
     
     return ' '.join(words)
+
+# Add this helper function to parse ambiguous dates
+def parse_ambiguous_date(date_str, post_date):
+    """
+    Parse a date string that could be DD/MM or MM/DD using post_date as context
+    Returns datetime object if valid, None if invalid
+    """
+    parts = re.split(r'[/-]', date_str)
+    if len(parts) != 2:
+        return None
+    
+    num1, num2 = map(int, parts)
+    post_year = post_date.year
+    
+    # Try as DD/MM first (European format)
+    try:
+        date_as_ddmm = datetime(post_year, num2, num1)
+        # If this date is before the post_date and it's within a month difference,
+        # try next year instead
+        if date_as_ddmm < post_date and (post_date - date_as_ddmm).days < 31:
+            date_as_ddmm = datetime(post_year + 1, num2, num1)
+        return date_as_ddmm
+    except ValueError:
+        pass
+    
+    # Only try MM/DD if the numbers could actually be valid month/day
+    if num1 <= 12 and num2 <= 31:
+        try:
+            date_as_mmdd = datetime(post_year, num1, num2)
+            if date_as_mmdd < post_date and (post_date - date_as_mmdd).days < 31:
+                date_as_mmdd = datetime(post_year + 1, num1, num2)
+            return date_as_mmdd
+        except ValueError:
+            pass
+    
+    return None
 
 # Example usage:
 file_path = './white-fox/white-foxDataset.csv'
