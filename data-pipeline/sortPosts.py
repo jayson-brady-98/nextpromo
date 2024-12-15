@@ -1,12 +1,14 @@
 import csv
 import re
 from datetime import datetime
+import os
 
 # Function to filter Instagram posts for sales information
 def filter_sales_posts(posts):
     # More specific sale-related patterns using regex
     sale_patterns = [
-        r'(?i)\b(?:flash |huge |big )?sale\b',  # "sale" with optional prefixes
+        r'(?i)(?<!not a\s)(?:flash |huge |big )?sale\b',  # excludes "not a sale"
+        r'(?i)(?<!not on\s)(?:flash |huge |big )?sale\b',  # excludes "not on sale"
         r'(?i)\b\d+%\s*off\b',  # percentage discounts
         r'(?i)\bclearance\b',
         r'(?i)\bpromo(?:tion)?\s+code[:\s]\s*[A-Z0-9]+\b',  # promo codes with actual code
@@ -178,6 +180,9 @@ def read_posts_from_csv(file_path):
     brand_name = re.search(r'([^/\\]+)Dataset', file_path, re.IGNORECASE)
     brand_name = brand_name.group(1).lower() if brand_name else 'unknown'
     
+    # Replace hyphens with spaces in brand name
+    brand_name = brand_name.replace('-', ' ')
+    
     posts = []
     with open(file_path, newline='', encoding='utf-8') as csvfile:
         reader = csv.DictReader(csvfile)
@@ -195,6 +200,22 @@ def read_posts_from_csv(file_path):
 
 def parse_date(date_str, year=None):
     formats = ['%B %d %Y', '%d %B %Y', '%d-%m-%Y', '%m-%d-%Y']
+    
+    # Normalize the month name first
+    date_str = normalize_month_name(date_str)
+    
+    # Clean up the date string to handle cases with duplicate day numbers
+    # Extract month name
+    month_match = re.search(r'(January|February|March|April|May|June|July|August|September|October|November|December)', date_str)
+    if month_match:
+        month = month_match.group(1)
+        # Extract the first number that appears
+        day_match = re.search(r'\b(\d{1,2})\b', date_str)
+        if day_match:
+            day = day_match.group(1)
+            # Reconstruct the date string
+            date_str = f"{day} {month}"
+    
     if year:
         date_str = f"{date_str} {year}"
     
@@ -205,8 +226,26 @@ def parse_date(date_str, year=None):
             continue
     raise ValueError(f"Date string '{date_str}' does not match any expected format")
 
+def normalize_month_name(date_str):
+    month_mappings = {
+        'jan': 'January', 'feb': 'February', 'mar': 'March',
+        'apr': 'April', 'may': 'May', 'jun': 'June',
+        'jul': 'July', 'aug': 'August', 'sep': 'September',
+        'oct': 'October', 'nov': 'November', 'dec': 'December'
+    }
+    
+    words = date_str.split()
+    for i, word in enumerate(words):
+        word_lower = word.lower()
+        for short_month, full_month in month_mappings.items():
+            if word_lower.startswith(short_month):
+                words[i] = full_month
+                break
+    
+    return ' '.join(words)
+
 # Example usage:
-file_path = './terra-tonics/terratonicsDataset.csv'
+file_path = './white-fox/white-foxDataset.csv'
 instagram_posts = read_posts_from_csv(file_path)
 sales_info = filter_sales_posts(instagram_posts)
 
@@ -233,7 +272,9 @@ sales_info = sorted(
 )
 
 # Save to CSV file
-output_file = f'prepped{sales_info[0]["brand"].capitalize()}Dataset.csv'
+input_directory = os.path.dirname(file_path)
+capitalized_brand = ''.join(word.capitalize() for word in sales_info[0]["brand"].split())
+output_file = os.path.join(input_directory, f'prepped{capitalized_brand}Dataset.csv')
 with open(output_file, 'w', newline='', encoding='utf-8') as f:
     writer = csv.DictWriter(f, fieldnames=[
         'brand', 'caption', 'post_date', 'y', 'sale_date', 
