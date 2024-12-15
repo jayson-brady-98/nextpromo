@@ -1,9 +1,10 @@
 import pandas as pd
 from prophet import Prophet
 import os
+from datetime import datetime
 
-# Read the CSV file
-data = pd.read_csv('white-fox/preppedWhiteFoxDataset.csv')
+# Read the CSV file with keep_default_na=False to prevent empty strings becoming NaN
+data = pd.read_csv('white-fox/preppedWhiteFoxDataset.csv', keep_default_na=False)
 
 # Create the main dataframe for Prophet
 df = pd.DataFrame({
@@ -13,35 +14,33 @@ df = pd.DataFrame({
     'comments': data['commentsCount']
 })
 
-# Create separate holiday DataFrames for different types of events
-# Filter out empty events and sale_dates
+# Filter and process historical events - only looking for non-empty events
 sales_events = data[
     (data['event'] != '') & 
-    (data['sale_date'] != '') &
-    (data['sale_date'].notna())  # Additional check for NaN values
+    (data['sale_date'] != '')
 ].copy()
 
-# Convert sale_date to datetime
-sales_events['sale_date'] = pd.to_datetime(sales_events['sale_date'], format='%d-%m-%Y')
+print(f"Number of historical events found: {len(sales_events)}")
+print("Event types found:", sales_events['event'].unique())
 
-# Define different windows for different types of events
+# Define different windows for different types of events with stronger effects
 event_windows = {
-    'Black Friday': {'lower_window': -14, 'upper_window': 3},
-    'EOFY Sale': {'lower_window': -10, 'upper_window': 2},
-    'Christmas': {'lower_window': -14, 'upper_window': 2},
-    'Cyber Monday': {'lower_window': -7, 'upper_window': 1},
-    'default': {'lower_window': -7, 'upper_window': 2}
+    'Black Friday': {'lower_window': -14, 'upper_window': 3, 'prior_scale': 10},
+    'EOFY Sale': {'lower_window': -10, 'upper_window': 2, 'prior_scale': 8},
+    'Christmas': {'lower_window': -14, 'upper_window': 2, 'prior_scale': 8},
+    'Cyber Monday': {'lower_window': -7, 'upper_window': 1, 'prior_scale': 8},
+    'default': {'lower_window': -7, 'upper_window': 2, 'prior_scale': 5}
 }
 
-# Create holidays DataFrame with different windows for different events
+# Create holidays DataFrame from historical events
 holidays_data = []
 for _, event_row in sales_events.iterrows():
     try:
         event_type = event_row['event']
         sale_date = pd.to_datetime(event_row['sale_date'], format='%d-%m-%Y')
         
-        # Skip if either value is empty or NaN
-        if pd.isna(event_type) or pd.isna(sale_date) or event_type == '' or sale_date == '':
+        # Skip empty strings
+        if event_type == '' or not sale_date:
             continue
             
         windows = event_windows.get(event_type, event_windows['default'])
@@ -50,38 +49,74 @@ for _, event_row in sales_events.iterrows():
             'holiday': event_type,
             'ds': sale_date,
             'lower_window': windows['lower_window'],
-            'upper_window': windows['upper_window']
+            'upper_window': windows['upper_window'],
+            'prior_scale': windows['prior_scale']
         })
-    except (ValueError, TypeError) as e:
+    except ValueError as e:
         print(f"Skipping invalid event: {e}")
         continue
 
-holidays = pd.DataFrame(holidays_data)
+# Add future holiday dates
+future_holidays = []
+for year in range(2024, 2026):  # Adjust range as needed
+    future_holidays.extend([
+        {
+            'holiday': 'Black Friday',
+            'ds': pd.Timestamp(f'{year}-11-24'),  # Approximate date
+            'lower_window': -14,
+            'upper_window': 3,
+            'prior_scale': 10
+        },
+        {
+            'holiday': 'Christmas',
+            'ds': pd.Timestamp(f'{year}-12-25'),
+            'lower_window': -14,
+            'upper_window': 2,
+            'prior_scale': 8
+        },
+        {
+            'holiday': 'Cyber Monday',
+            'ds': pd.Timestamp(f'{year}-11-27'),  # Approximate date
+            'lower_window': -7,
+            'upper_window': 1,
+            'prior_scale': 8
+        },
+        {
+            'holiday': 'EOFY Sale',
+            'ds': pd.Timestamp(f'{year}-06-30'),
+            'lower_window': -10,
+            'upper_window': 2,
+            'prior_scale': 8
+        }
+    ])
 
-# Debug print
-print("Holidays DataFrame shape:", holidays.shape)
-print("Holidays columns with NaN:", holidays.isna().sum())
+# Combine historical and future holidays
+holidays = pd.concat([
+    pd.DataFrame(holidays_data),
+    pd.DataFrame(future_holidays)
+]).reset_index(drop=True)
 
-if len(holidays) == 0:
-    print("No valid holiday events found")
-    holidays = None
-elif holidays.isna().any().any():
-    print("Removing rows with NaN values")
-    holidays = holidays.dropna()
+# Initialize and configure the model with stronger seasonality
+model = Prophet(
+    holidays=holidays,
+    yearly_seasonality=30,  # Increased from 20
+    weekly_seasonality=True,
+    daily_seasonality=False,
+    seasonality_prior_scale=30,  # Increased from 20
+    holidays_prior_scale=15  # Increased from 10
+)
 
-# Add regressors and events to the model
-model = Prophet(holidays=holidays if holidays is not None and len(holidays) > 0 else None)
 model.add_regressor('likes')
 model.add_regressor('comments')
 
 # Fit the model
 model.fit(df)
 
-# For future predictions, we need to include the regressor values
+# Create future dataframe
 future = model.make_future_dataframe(periods=365)
 
-# Use more sophisticated approach for future regressor values
-window_size = 30  # 30-day rolling average
+# Add regressor values for future predictions
+window_size = 30
 rolling_likes = df['likes'].rolling(window=window_size).mean().iloc[-1]
 rolling_comments = df['comments'].rolling(window=window_size).mean().iloc[-1]
 
@@ -91,12 +126,11 @@ future['comments'] = rolling_comments
 # Make predictions
 forecast = model.predict(future)
 
-# Extract brand name from input filename and save predictions
+# Save predictions
 input_file = 'white-fox/preppedWhiteFoxDataset.csv'
 input_directory = os.path.dirname(input_file)
 brand_name = input_file.split('prepped')[1].split('Dataset')[0]
 output_file = os.path.join(input_directory, f'{brand_name.lower()}Prediction.csv')
 
-# Save predictions to a CSV using the extracted brand name in camelCase
 forecast[['ds', 'yhat']].to_csv(output_file, index=False)
 print(f"Predictions saved to {output_file}")
