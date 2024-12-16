@@ -60,11 +60,23 @@ def filter_sales_posts(posts):
         r'(?i)expires?\s+(?:on|at)?\b'
     ]
     
+    # Add this new list near the other pattern definitions
+    negative_sale_patterns = [
+        r'(?i)(?:this\s+is\s+)?not\s+a\s+sale',
+        r'(?i)not\s+on\s+sale',
+        r'(?i)no\s+sale',
+        r'(?i)isn[\']t\s+a\s+sale',
+        r'(?i)isn[\']t\s+on\s+sale'
+    ]
+    
     # Extract sale details from posts
     result = []
     for post in posts:
         # Check if the post mentions sales using the new patterns
-        is_sale_post = any(re.search(pattern, post['caption'].lower()) for pattern in sale_patterns)
+        is_sale_post = (
+            any(re.search(pattern, post['caption'].lower()) for pattern in sale_patterns) and
+            not any(re.search(pattern, post['caption'].lower()) for pattern in negative_sale_patterns)
+        )
         
         # Extract the year from the post_date
         post_date_str = post.get('post_date', 'N/A')
@@ -313,7 +325,7 @@ def parse_ambiguous_date(date_str, post_date):
     return None
 
 # Example usage:
-file_path = './white-fox/white-foxDataset.csv'
+file_path = './vpa/vpaDataset.csv'
 instagram_posts = read_posts_from_csv(file_path)
 sales_info = filter_sales_posts(instagram_posts)
 

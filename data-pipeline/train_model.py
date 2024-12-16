@@ -6,13 +6,29 @@ from datetime import datetime
 # Read the CSV file with keep_default_na=False to prevent empty strings becoming NaN
 data = pd.read_csv('vpa/preppedVpaDataset.csv', keep_default_na=False)
 
+# Debug: Check for any invalid dates
+print("Sample of post_dates:", data['post_date'].head())
+print("Any empty post_dates:", (data['post_date'] == '').sum())
+
 # Create the main dataframe for Prophet
-df = pd.DataFrame({
-    'ds': pd.to_datetime(data['post_date'], format='%d-%m-%Y'),
-    'y': data['y'].astype(int),
-    'likes': data['likesCount'],
-    'comments': data['commentsCount']
-})
+try:
+    df = pd.DataFrame({
+        'ds': pd.to_datetime(data['post_date'], format='%d-%m-%Y', errors='coerce'),
+        'y': data['y'].astype(int),
+        'likes': data['likesCount'],
+        'comments': data['commentsCount']
+    })
+    
+    # Debug: Check for NaN values
+    print("Number of NaN values in ds:", df['ds'].isna().sum())
+    print("Rows with NaN dates:")
+    print(data[pd.to_datetime(data['post_date'], format='%d-%m-%Y', errors='coerce').isna()])
+    
+    # Remove any rows with NaN dates
+    df = df.dropna(subset=['ds'])
+    
+except Exception as e:
+    print(f"Error creating dataframe: {e}")
 
 # Filter and process historical events - only looking for non-empty events
 sales_events = data[
