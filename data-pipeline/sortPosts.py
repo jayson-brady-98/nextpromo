@@ -325,7 +325,7 @@ def parse_ambiguous_date(date_str, post_date):
     return None
 
 # Example usage:
-file_path = './vpa/vpaDataset.csv'
+file_path = './wot-not/wot-not-naturalsDataset.csv'
 instagram_posts = read_posts_from_csv(file_path)
 sales_info = filter_sales_posts(instagram_posts)
 

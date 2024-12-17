@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 
 # Read the CSV file with keep_default_na=False to prevent empty strings becoming NaN
-data = pd.read_csv('vpa/preppedVpaDataset.csv', keep_default_na=False)
+data = pd.read_csv('wot-not/preppedWotNotNaturalsDataset.csv', keep_default_na=False)
 
 # Debug: Check for any invalid dates
 print("Sample of post_dates:", data['post_date'].head())
@@ -44,7 +44,7 @@ event_windows = {
     'Black Friday': {
         'lower_window': -21,  
         'upper_window': 5,    
-        'prior_scale': 8      # Keep this consistent
+        'prior_scale': 8      
     },
     'Cyber Monday': {
         'lower_window': -3,   
@@ -55,6 +55,11 @@ event_windows = {
         'lower_window': -14,
         'upper_window': 2,
         'prior_scale': 8
+    },
+    'International Womens Day': {  # Add this new event
+        'lower_window': -7,
+        'upper_window': 2,
+        'prior_scale': 5
     },
     'default': {
         'lower_window': -7,
@@ -148,7 +153,7 @@ future = model.make_future_dataframe(periods=365)
 forecast = model.predict(future)
 
 # Save predictions
-input_file = 'vpa/preppedVpaDataset.csv'
+input_file = 'wot-not/preppedWotNotNaturalsDataset.csv'
 input_directory = os.path.dirname(input_file)
 brand_name = input_file.split('prepped')[1].split('Dataset')[0]
 output_file = os.path.join(input_directory, f'{brand_name.lower()}Prediction.csv')
