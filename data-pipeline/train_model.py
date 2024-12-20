@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 
 # Read the CSV file with keep_default_na=False to prevent empty strings becoming NaN
-data = pd.read_csv('wot-not/preppedWotNotNaturalsDataset.csv', keep_default_na=False)
+data = pd.read_csv('bared-footwear/preppedBaredFootwearDataset.csv', keep_default_na=False)
 
 # Debug: Check for any invalid dates
 print("Sample of post_dates:", data['post_date'].head())
@@ -153,7 +153,7 @@ future = model.make_future_dataframe(periods=365)
 forecast = model.predict(future)
 
 # Save predictions
-input_file = 'wot-not/preppedWotNotNaturalsDataset.csv'
+input_file = 'bared-footwear/preppedBaredFootwearDataset.csv'
 input_directory = os.path.dirname(input_file)
 brand_name = input_file.split('prepped')[1].split('Dataset')[0]
 output_file = os.path.join(input_directory, f'{brand_name.lower()}Prediction.csv')
