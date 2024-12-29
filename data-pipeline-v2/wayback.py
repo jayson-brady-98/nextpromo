@@ -48,9 +48,11 @@ def get_promo_keywords() -> List[str]:
         'summer sale', 'winter sale',
         'flash sale', 'eofy', 'end of financial year',
         'end of season', 'afterpay day',
-        'boxing day', 'back to school sale', 'march madness',
-        'promotion', 'deal', 'clearance', 'special offer',
-        'regular price', 'sale price', 'international women\'s day'
+        'boxing day', 'back to school sale',
+        'promotion','clearance',  'march madness',
+        'sale price', 'international women\'s day',
+        'singles day', '% off everything', 'sitewide',
+        'everything must go'
     ]
 
 def is_in_navigation(element) -> bool:
@@ -131,7 +133,7 @@ def is_in_newsletter(element) -> bool:
         current = current.parent
     return False
 
-def analyze_page_content(url: str, proxy_config: Dict) -> Tuple[bool, Dict[str, List[str]]]:
+def analyze_page_content(url: str, proxy_config: Dict) -> Tuple[bool, Dict[str, List[str]], Optional[str], bool]:
     try:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -163,6 +165,9 @@ def analyze_page_content(url: str, proxy_config: Dict) -> Tuple[bool, Dict[str, 
         
         text = ' '.join(soup.stripped_strings)
         text_lower = text.lower()
+        
+        # Add end date extraction
+        end_date = extract_sale_end_date(text)
         
         keywords = get_promo_keywords()
         keyword_contexts = {}
@@ -252,11 +257,31 @@ def analyze_page_content(url: str, proxy_config: Dict) -> Tuple[bool, Dict[str, 
                 if contexts:  # Only add if we have valid contexts after filtering
                     keyword_contexts[keyword] = contexts
         
-        return bool(keyword_contexts), keyword_contexts
+        # Replace the current sitewide check with this more precise logic
+        sitewide_patterns = [
+            r'\d+%\s+off\s+everything',
+            r'everything\s+\d+%\s+off',
+            'black friday',
+            'cyber monday',
+            'sitewide',
+            'everything must go'
+        ]
+        
+        is_sitewide = False
+        if keyword_contexts:
+            for _, contexts in keyword_contexts.items():
+                for context in contexts:
+                    if any(re.search(pattern, context.lower()) for pattern in sitewide_patterns):
+                        is_sitewide = True
+                        break
+                if is_sitewide:
+                    break
+
+        return bool(keyword_contexts), keyword_contexts, end_date, is_sitewide
         
     except Exception as e:
         print(f"Error analyzing {url}: {str(e)}")
-        return False, {}
+        return False, {}, None, False
 
 def batch_process_with_proxies(urls: List[str], from_date: str, to_date: str, 
                              proxies: List[str], batch_size: int = 5) -> Dict:
@@ -364,9 +389,11 @@ def analyze_daily_snapshots(daily_snapshots: dict, proxies: List[str], completed
             proxy_config = {'http': proxy, 'https': proxy}
             print(f"Analyzing snapshot from {timestamp} using proxy: {proxy}")
             
-            has_promo, keyword_contexts = analyze_page_content(data['url'], proxy_config)
+            has_promo, keyword_contexts, end_date, is_sitewide = analyze_page_content(data['url'], proxy_config)
             data['promotion'] = has_promo
             data['promo_contexts'] = keyword_contexts
+            data['sale_end_date'] = end_date
+            data['sitewide'] = is_sitewide
             results[timestamp] = data
             
             completed_urls.add(timestamp)
@@ -384,6 +411,12 @@ def extract_sale_end_date(text: str) -> str:
     
     # Patterns for different date formats with optional time and timezone
     patterns = [
+        # Modified "Extended until/to" patterns
+        rf'extended\s+(?:until|to)\s+(\w+day{time_pattern}{timezone_pattern})',
+        rf'extended\s+(?:until|to)\s+(\d{{1,2}}(?:st|nd|rd|th)?\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)'
+        rf'(?:\s+\d{{4}})?{time_pattern}{timezone_pattern})',
+        rf'extended\s+(?:until|to)\s+(\d{{1,2}}[/-]\d{{1,2}}(?:[/-]\d{{2,4}})?{time_pattern}{timezone_pattern})',
+        
         # Days of week with optional time/timezone
         rf'(?:sale\s+)?ends?\s+(?:on\s+)?(\w+day{time_pattern}{timezone_pattern})',
         
@@ -426,7 +459,7 @@ def main():
     urls = [
         "https://www.gymshark.com"
     ]
-    from_date = "20241001"
+    from_date = "20241201"
     to_date = "20241229"
     
     # Get proxy list
