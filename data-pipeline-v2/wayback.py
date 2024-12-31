@@ -459,8 +459,8 @@ def main():
     urls = [
         "https://www.gymshark.com"
     ]
-    from_date = "20240501"
-    to_date = "20240531"
+    from_date = "20130126"
+    to_date = "20241230"
     
     # Get proxy list
     proxies = get_proxy_list()
