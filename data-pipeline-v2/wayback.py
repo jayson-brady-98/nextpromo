@@ -261,7 +261,7 @@ def analyze_page_content(url: str, proxy_config: Dict) -> Tuple[bool, Dict[str, 
         sitewide_patterns = [
             r'\d+%\s+off\s+everything',
             r'everything\s+\d+%\s+off',
-            'black friday',
+            'black friday', 
             'cyber monday',
             'sitewide',
             'everything must go'
