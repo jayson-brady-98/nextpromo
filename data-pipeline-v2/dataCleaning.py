@@ -51,9 +51,6 @@ def filter_promotional_patterns(context: str) -> bool:
     
     # Existing promotional patterns check
     patterns = [
-        # Add Friends and Family pattern at the top
-        r'friends?\s*(?:&|and)\s*family',  # Matches "Friends & Family" or "Friend and Family" variations - specific to Gymshark
-        
         # Update existing buy-get patterns to be more comprehensive
         r'buy\s*\d+[^.]*get\s*\d+',  # Original pattern
         r'buy\s*(?:\d+|two|three|four|five)\s*(?:or\s*more)?[^.]*get\s*\d+%?\s*off',  # New pattern
@@ -86,9 +83,14 @@ def filter_promotional_patterns(context: str) -> bool:
         r'(?:want|get)\s*(?:emails|news|updates).*(?:\d+%\s*off)',  # Email signup incentives
         r'(?:sign|subscribe).*(?:emails?|newsletter).*(?:read|updates?)',  # Newsletter engagement text
         
-        # Threshold-based offers
-        r'(?:orders?|purchases?|spend).*(?:over|above)?\s*[\$£€]?\d+',  # Matches spending threshold offers
-        r'\d+%\s*off.*(?:orders?|purchases?).*(?:over|above)?\s*[\$£€]?\d+',  # Combined threshold discounts
+        # Updated threshold-based offers with 20 char limit
+        r'(?:orders?|purchases?|spend).{0,20}(?:over|above)?\s*[\$£€]?\d+',  # Matches spending threshold offers
+        r'\d+%\s*off.{0,20}(?:orders?|purchases?).*(?:over|above)?\s*[\$£€]?\d+',  # Combined threshold discounts
+        
+        # Add new grab-related patterns
+        r'grab\s*(?:\d+|two|three|four|five)\s*(?:or\s*more)?[^.]*get\s*\d+%?\s*off',
+        r'grab\s*(?:\d+|two|three|four|five)\s*(?:or\s*more)?[^.]*and\s*(?:get|receive)\s*\d+%?\s*off',
+        r'grab\s*(?:\d+|two|three|four|five)\s*(?:or\s*more)?\s*(?:of|pieces?|items?|[a-zA-Z\s]+(?:leggings?|shorts?|tops?))[^.]*get\s*\d+%?\s*off',
     ]
     
     return not any(re.search(pattern, context.lower()) for pattern in patterns)
@@ -107,8 +109,8 @@ def clean_promo_contexts(data: Dict) -> Dict:
             if filtered_contexts:  # Only keep keywords with remaining contexts
                 cleaned_contexts[keyword] = filtered_contexts
         
-        # Only keep entry if it still has multiple keywords after filtering
-        if len(cleaned_contexts) > 1:
+        # Keep entry if it has any valid contexts remaining
+        if cleaned_contexts:  # Changed from len(cleaned_contexts) > 1
             cleaned_entry['promo_contexts'] = cleaned_contexts
             cleaned_data[timestamp] = cleaned_entry
             
@@ -122,7 +124,7 @@ def determine_event(promo_contexts: Dict, brand: str = '') -> str:
     priority_keywords = {
         "black friday": "Black Friday",
         "cyber monday": "Cyber Monday",
-        # Add other priority mappings as needed
+        "boxing day": "Boxing Day",
     }
     
     # Check if any priority keywords were used
@@ -130,7 +132,7 @@ def determine_event(promo_contexts: Dict, brand: str = '') -> str:
         if keyword in keywords_used:
             return event_name
     
-    # If no priority keywords found, continue with existing logic...
+    # Get all contexts for pattern matching
     all_contexts = []
     for context_list in promo_contexts.values():
         all_contexts.extend(context_list)
@@ -139,27 +141,28 @@ def determine_event(promo_contexts: Dict, brand: str = '') -> str:
     full_context = ' '.join(all_contexts).lower()
     brand = brand.lower()
     
-    # Map brand-specific sale to Generic Sale
-    if brand and f"{brand} sale" in full_context:
-        return "Generic Sale"
+    # Check for major sale keywords first
+    major_sale_keywords = [
+        "afterpay day", "boxing day", "flash sale", "singles day",
+        "international womens day", "end of season", "mid season",
+        "mid season sale",
+        "eofy", "end of financial year", "birthday sale", "blackout",
+        "labour day", "labor day", "4th of july", "fourth of july", 'hauliday',
+        "friends and family", "outlet", "outlet sale", "men's outlet", "women's outlet"
+    ]
+    
+    # Check major keywords first
+    for keyword in major_sale_keywords:
+        if keyword in full_context:
+            return keyword.title()
     
     # Special case for summer/winter sale
     if "summer sale" in full_context or "winter sale" in full_context:
         return "Summer/Winter Sale"
     
-    # Check for other major sale keywords
-    major_sale_keywords = [
-        "black friday", "cyber monday", "afterpay day", "boxing day", 
-        "flash sale", "singles day", "international womens day", 
-        "end of season", "mid season", "eofy", "end of financial year",
-        "birthday sale", "blackout", "labour day", "labor day",
-        "4th of july", "fourth of july"
-    ]
-    
-    # Return first matching keyword found
-    for keyword in major_sale_keywords:
-        if keyword in full_context:
-            return keyword.title()  # Capitalize first letter of each word
+    # Last priority: Check for brand-specific sale
+    if brand and f"{brand} sale" in full_context:
+        return "Generic Sale"
     
     return ""  # Return empty string if no keywords found
 
@@ -299,17 +302,44 @@ def determine_y_value(row):
     # Get brand name from the function parameters
     brand_name = row.get('brand', '').lower()
     
-    # 1. First check if sitewide is true
+    # 1. Check sitewide with additional context validation
     if row.get('sitewide', False):
-        return 1
+        # Get all contexts for analysis
+        all_contexts = []
+        for context_list in row.get('promo_contexts', {}).values():
+            all_contexts.extend(context_list)
         
+        # Convert to lowercase and join for pattern matching
+        full_context = ' '.join(all_contexts).lower()
+        
+        # Check if contexts only contain basic sale keywords
+        basic_sale_patterns = [
+            r'sale',
+            r'\d+%\s+off'
+        ]
+        
+        # Remove basic sale patterns from the context
+        cleaned_context = full_context
+        for pattern in basic_sale_patterns:
+            cleaned_context = re.sub(pattern, '', cleaned_context)
+        
+        # If there's meaningful content left after removing basic patterns,
+        # or if it matches our other promotional patterns, mark as sale
+        cleaned_context = cleaned_context.strip()
+        if cleaned_context:  # If there's additional context beyond basic sale keywords
+            return 1
+        
+        # If only basic sale keywords were found, continue with regular checks
+    
     # 2. Check for major sale keywords in promo_contexts
     major_sale_keywords = [
         "black friday", "cyber monday", "afterpay day", "boxing day", 
         "flash sale", "summer sale", "winter sale", "singles day",
         "international womens day", "end of season", "mid season",
+        "mid season sale",
         "eofy", "end of financial year", "birthday sale", "blackout",
-        "labour day", "labor day", "4th of july", "fourth of july"
+        "labour day", "labor day", "4th of july", "fourth of july", 'hauliday',
+        "friends and family", "outlet", "outlet sale", "men's outlet", "women's outlet"
     ]
     
     # Add brand-specific sale keyword if brand is available

@@ -60,10 +60,13 @@ def get_promo_keywords() -> List[str]:
         'promotion', 'clearance', 'march madness',
         'sale price', 'international women\'s day',
         'singles day', '% off everything', 'sitewide',
-        'everything must go',
+        'everything must go', 'blackout', 'hauliday',
         # New celebration sales
         'birthday sale', 'anniversary sale',
         'annual sale', 'yearly sale',
+        'mid season sale',
+        # Add outlet related keywords
+        'outlet', 'outlet sale', 'men\'s outlet', 'women\'s outlet',
         # Stock availability indicators
         'while stocks last', 'while stock lasts'
     ]
@@ -498,7 +501,6 @@ def analyze_page_content(url: str, proxy_config: Dict) -> Tuple[bool, Dict[str, 
             'sitewide',
             'everything must go',
             'no exclusions',
-            'all products'
         ]
         
         is_sitewide = False
@@ -754,8 +756,8 @@ def main():
     urls = [
         "https://www.gymshark.com"
     ]
-    from_date = "20221225"
-    to_date = "20221229"
+    from_date = "20130412"
+    to_date = "20241231"
     
     # Get proxy list
     proxies = get_proxy_list()
