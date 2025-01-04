@@ -194,7 +194,7 @@ def determine_discount(promo_contexts: Dict) -> str:
     
     return ""  # Return empty string if no discount found
 
-def clean_data(input_file: str, output_file: str, validation_file: str, brand: str):
+def clean_data(input_file: str, output_file: str, brand: str, validation_file: str):
     # Load and clean data
     raw_data = load_raw_data(input_file)
     
@@ -203,36 +203,55 @@ def clean_data(input_file: str, output_file: str, validation_file: str, brand: s
     multi_context = filter_single_context(promo_only)
     cleaned_data = clean_promo_contexts(multi_context)
     
-    # Create initial CSV with all cleaned entries and columns in desired order
+    # Create initial rows with all cleaned entries
     temp_rows = []
+    prophet_rows = []
+    
     for timestamp, entry in cleaned_data.items():
         y_value = determine_y_value(entry)
-        if y_value == 1:  # Only include rows where y = 1
+        if y_value == 1:
             event = determine_event(entry['promo_contexts'], brand)
             sitewide = 1 if entry.get('sitewide', False) else 0
             discount = determine_discount(entry['promo_contexts'])
+            
+            # Convert timestamp for aggregated file
+            dt = datetime.strptime(timestamp, '%Y%m%d%H%M%S')
+            formatted_date = dt.strftime('%d/%m/%Y')
+            
+            # Data for aggregated file
             temp_rows.append({
                 'brand': brand,
                 'y': y_value,
                 'sitewide': sitewide,
-                'start_date': timestamp,  # We'll rename this in aggregation
-                'end_date': timestamp,    # We'll rename this in aggregation
+                'start_date': formatted_date,
+                'end_date': formatted_date,
                 'event': event,
                 'discount': discount,
-                'snapshot': timestamp     # Add snapshot column
+                'snapshot': timestamp
+            })
+            
+            
+            prophet_rows.append({
+                'y': y_value,
+                'snapshot': timestamp,
+                'event': event,
+                'sitewide': sitewide,
+                'discount': discount
             })
     
-    # Convert to DataFrame with columns already in correct order
+    # Create DataFrames
     df = pd.DataFrame(temp_rows)
+    prophet_df = pd.DataFrame(prophet_rows)
     
-    # Aggregate the sales data
+    # Save prophet data with reordered columns
+    prophet_columns = ['y', 'snapshot', 'event', 'sitewide', 'discount']
+    prophet_df = prophet_df[prophet_columns]
+    prophet_df.to_csv(f'p_{brand.lower()}.csv', index=False)
+    
+    # Create and save aggregated version
     aggregated_df = aggregate_sales(df)
-    
-    # Reorder columns to put brand first and include snapshot at the end
     columns = ['brand', 'y', 'event', 'sitewide', 'discount', 'start_date', 'end_date', 'snapshot']
     aggregated_df = aggregated_df[columns]
-    
-    # Write aggregated data to CSV
     aggregated_df.to_csv(output_file, index=False)
     
     # Save filtered entries for validation
@@ -399,9 +418,9 @@ def determine_y_value(row):
 
 def aggregate_sales(df):
     """Aggregate sales data by combining consecutive entries of the same event within 4 days"""
-    # Convert dates to datetime for comparison
-    df['start_dt'] = pd.to_datetime(df['start_date'], format='%Y%m%d%H%M%S')
-    df['end_dt'] = pd.to_datetime(df['end_date'], format='%Y%m%d%H%M%S')
+    # Convert snapshot timestamps to datetime for comparison
+    df['start_dt'] = pd.to_datetime(df['snapshot'], format='%Y%m%d%H%M%S')
+    df['end_dt'] = pd.to_datetime(df['snapshot'], format='%Y%m%d%H%M%S')
     
     # Sort by event and start date
     df = df.sort_values(['event', 'start_dt'])
@@ -472,4 +491,4 @@ if __name__ == "__main__":
     output_file = "gymsharkCleaned.csv"
     validation_file = "gymsharkForReview.json"
     brand = "Gymshark"
-    clean_data(input_file, output_file, validation_file, brand)
+    clean_data(input_file, output_file, brand, validation_file)
