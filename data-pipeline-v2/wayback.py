@@ -7,6 +7,14 @@ from typing import Dict, List, Tuple, Optional
 from collections import defaultdict
 from itertools import cycle
 import random
+import os
+import pytesseract
+from PIL import Image
+from io import BytesIO
+import base64
+
+# For Windows users, uncomment and modify this line if Tesseract isn't in PATH:
+# pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 class ProxyManager:
     def __init__(self, proxies: List[str]):
@@ -49,10 +57,15 @@ def get_promo_keywords() -> List[str]:
         'flash sale', 'eofy', 'end of financial year',
         'end of season', 'afterpay day',
         'boxing day', 'back to school sale',
-        'promotion','clearance',  'march madness',
+        'promotion', 'clearance', 'march madness',
         'sale price', 'international women\'s day',
         'singles day', '% off everything', 'sitewide',
-        'everything must go'
+        'everything must go',
+        # New celebration sales
+        'birthday sale', 'anniversary sale',
+        'annual sale', 'yearly sale',
+        # Stock availability indicators
+        'while stocks last', 'while stock lasts'
     ]
 
 def is_in_navigation(element) -> bool:
@@ -133,6 +146,147 @@ def is_in_newsletter(element) -> bool:
         current = current.parent
     return False
 
+def is_hero_or_banner_image(img_tag) -> bool:
+    """Check if image is likely a hero/banner image based on common patterns"""
+    if not img_tag:
+        return False
+        
+    # First check alt text and src directly for sale-related content
+    alt_text = img_tag.get('alt', '').lower()
+    src = img_tag.get('src', '').lower()
+    
+    # Use the same keywords as text analysis
+    promo_keywords = get_promo_keywords()
+    
+    # Check alt text and src immediately
+    if any(keyword.lower() in alt_text for keyword in promo_keywords) or \
+       any(keyword.lower() in src for keyword in promo_keywords):
+        return True
+        
+    # Check parent elements up to 3 levels
+    current = img_tag
+    for _ in range(3):
+        if not hasattr(current, 'parent'):
+            break
+            
+        current = current.parent
+        if not current:
+            break
+            
+        # Get classes and ID
+        classes = current.get('class', []) if hasattr(current, 'get') else []
+        if isinstance(classes, str):
+            classes = [classes]
+        element_id = current.get('id', '').lower() if hasattr(current, 'get') else ''
+        
+        # Common class/id patterns for hero/banner sections
+        hero_indicators = [
+            'hero',
+            'banner',
+            'carousel',
+            'slider',
+            'homepage-banner',
+            'main-banner',
+            'featured',
+            'promotion',
+            'promo',
+            'announcement',
+            'splash',
+            'billboard'
+        ]
+        
+        if any(indicator in ' '.join(classes).lower() for indicator in hero_indicators):
+            return True
+        if any(indicator in element_id for indicator in hero_indicators):
+            return True
+    
+    # Check image attributes
+    img_classes = img_tag.get('class', [])
+    if isinstance(img_classes, str):
+        img_classes = [img_classes]
+    img_id = img_tag.get('id', '').lower()
+    
+    # Check alt text for promotional content
+    alt_text = img_tag.get('alt', '').lower()
+    promo_terms = ['sale', 'offer', 'discount', 'promotion', 'off', 'deal']
+    if any(term in alt_text for term in promo_terms):
+        return True
+    
+    # Check if it's a full-width image
+    style = img_tag.get('style', '').lower()
+    width = img_tag.get('width', '')
+    if 'width: 100%' in style or width == '100%':
+        return True
+    
+    # Check image URL for promotional indicators
+    src = img_tag.get('src', '').lower()
+    if any(term in src for term in ['hero', 'banner', 'promo', 'campaign']):
+        return True
+    
+    return False
+
+def extract_image_text(soup) -> List[str]:
+    """Extract text from hero/banner images using OCR"""
+    texts = []
+    promo_keywords = get_promo_keywords()
+    
+    # Find all img tags
+    for img in soup.find_all('img'):
+        try:
+            # Always include alt text if it contains promotional content
+            alt_text = img.get('alt', '').strip()
+            if alt_text and any(keyword.lower() in alt_text.lower() for keyword in promo_keywords):
+                texts.append(alt_text)
+                print(f"Added promotional alt text: {alt_text}")
+            
+            # Skip if not a hero/banner image
+            if not is_hero_or_banner_image(img):
+                continue
+                
+            # Get image source
+            src = img.get('src', '')
+            if not src:
+                continue
+                
+            # Skip small images (likely icons)
+            if any(x in src.lower() for x in ['icon', 'logo', 'spacer']):
+                continue
+            
+            print(f"Processing potential hero/banner image: {src}")
+                
+            # Handle base64 encoded images
+            if src.startswith('data:image'):
+                try:
+                    image_data = src.split(',')[1]
+                    image_bytes = base64.b64decode(image_data)
+                    img_obj = Image.open(BytesIO(image_bytes))
+                except:
+                    continue
+            else:
+                # Handle regular image URLs
+                try:
+                    response = requests.get(src, timeout=5)
+                    img_obj = Image.open(BytesIO(response.content))
+                    
+                    # Skip small images
+                    if img_obj.width < 600 or img_obj.height < 200:
+                        continue
+                        
+                except:
+                    continue
+            
+            # Extract text from image
+            text = pytesseract.image_to_string(img_obj)
+            if text.strip():
+                texts.append(text.strip())
+                print(f"Extracted text from image: {text.strip()}")
+                
+        except Exception as e:
+            print(f"Error processing image: {str(e)}")
+            continue
+            
+    return texts
+
 def analyze_page_content(url: str, proxy_config: Dict) -> Tuple[bool, Dict[str, List[str]], Optional[str], bool]:
     try:
         headers = {
@@ -163,7 +317,18 @@ def analyze_page_content(url: str, proxy_config: Dict) -> Tuple[bool, Dict[str, 
         
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        text = ' '.join(soup.stripped_strings)
+        # Extract regular text content first
+        regular_text = ' '.join(soup.stripped_strings)
+        
+        # Try to extract image text, but continue if it fails
+        try:
+            image_texts = extract_image_text(soup)
+        except Exception as e:
+            print(f"Image text extraction failed, continuing with regular text only: {str(e)}")
+            image_texts = []
+            
+        # Combine texts (will just be regular_text if image extraction failed)
+        text = ' '.join([regular_text] + image_texts)
         text_lower = text.lower()
         
         # Add end date extraction
@@ -173,47 +338,91 @@ def analyze_page_content(url: str, proxy_config: Dict) -> Tuple[bool, Dict[str, 
         keyword_contexts = {}
         
         exclude_phrases = [
+            # Customer group discounts
             'student discount',
             'military discount',
             'veterans discount',
-            'pay with afterpay',
-            'afterpay, pay',
-            '10% student',
             '10% student',
             '10% military',
             '10% veterans',
+            
+            # Referral/loyalty
             'refer a friend to earn',
+            
+            # False positives
             '100% composed of',
             '100% made of',
+            
+            # First-time purchase offers
             '% off your first order',
             '% off when you',
-            'for a chance to win'
+            'exclusive discounts',
+            
+            # Contest/sweepstakes
+            'for a chance to win',
+            
+            # Wayback machine text
+            'internet archive',
+            'wayback machine'
         ]
         
+        # Regex patterns to exclude
+        exclude_patterns = [
+            # Sign-up/newsletter offers
+            r'sign\s*up[^.]*\d+%\s*off',
+            r'join[^.]*\d+%\s*off',
+            r'subscribe[^.]*\d+%\s*off',
+            r'newsletter.*(?:discount|deal|offer|saving)',
+            r'(?:discount|deal|offer|saving).*newsletter',
+            
+            # Membership offers
+            r'(?:exclusive|special)\s+(?:discount|deal|offer|saving).*(?:member|membership)',
+            r'(?:member|membership).*(?:exclusive|special)\s+(?:discount|deal|offer|saving)',
+            
+            # Download offers
+            r'download.*(?:discount|deal|offer|saving)',
+            r'(?:discount|deal|offer|saving).*download',
+            
+            # First purchase offers
+            r'\d+%\s*off.*(?:next|first)\s*(?:order|purchase)',
+            
+            # Email/signup related
+            r'(?:sign|signed)\s*(?:up|me up).*(?:discount|off|news)',
+            r'(?:want|get)\s*(?:emails|news|updates).*(?:\d+%\s*off)',
+            r'(?:sign|subscribe).*(?:emails?|newsletter).*(?:read|updates?)',
+            
+            # Threshold-based offers
+            r'(?:orders?|purchases?|spend).*(?:over|above)?\s*[\$£€]?\d+',
+            r'\d+%\s*off.*(?:orders?|purchases?).*(?:over|above)?\s*[\$£€]?\d+'
+        ]
+
         for keyword in keywords:
             if keyword.lower() in text_lower:
                 contexts = []
                 
                 # Special handling for 'sale' keyword
                 if keyword.lower() == 'sale':
-                    # Find all text nodes containing 'sale'
                     for element in soup.find_all(string=re.compile(r'\bsale\b', re.I)):
                         if not is_in_navigation(element):
                             context_text = element.strip()
                             if context_text:
-                                # Get surrounding text
                                 context_start = max(0, text.lower().find(context_text.lower()) - 50)
                                 context_end = min(len(text), text.lower().find(context_text.lower()) + len(context_text) + 50)
                                 context = text[context_start:context_end].strip()
                                 
-                                # Apply existing exclusion rules
-                                should_exclude = any(phrase in context.lower() for phrase in exclude_phrases)
+                                # Combined exclusion check
+                                should_exclude = (
+                                    any(phrase in context.lower() for phrase in exclude_phrases) or
+                                    any(re.search(pattern, context.lower()) for pattern in exclude_patterns)
+                                )
+                                
                                 if not should_exclude:
                                     if context_start > 0:
                                         context = f"...{context}"
                                     if context_end < len(text):
                                         context = f"{context}..."
                                     contexts.append(context)
+                
                 # Special handling for '% off' keyword
                 elif '% off' in keyword.lower():
                     for element in soup.find_all(string=re.compile(r'\d+\s*%\s*off', re.I)):
@@ -224,13 +433,19 @@ def analyze_page_content(url: str, proxy_config: Dict) -> Tuple[bool, Dict[str, 
                                 context_end = min(len(text), text.lower().find(context_text.lower()) + len(context_text) + 50)
                                 context = text[context_start:context_end].strip()
                                 
-                                should_exclude = any(phrase in context.lower() for phrase in exclude_phrases)
+                                # Combined exclusion check
+                                should_exclude = (
+                                    any(phrase in context.lower() for phrase in exclude_phrases) or
+                                    any(re.search(pattern, context.lower()) for pattern in exclude_patterns)
+                                )
+                                
                                 if not should_exclude:
                                     if context_start > 0:
                                         context = f"...{context}"
                                     if context_end < len(text):
                                         context = f"{context}..."
                                     contexts.append(context)
+                
                 else:
                     # Original keyword matching logic for other keywords
                     start = 0
@@ -243,8 +458,12 @@ def analyze_page_content(url: str, proxy_config: Dict) -> Tuple[bool, Dict[str, 
                         context_end = min(len(text), index + len(keyword) + 50)
                         context = text[context_start:context_end].strip()
                         
-                        # Keep the exclusion check
-                        should_exclude = any(phrase in context.lower() for phrase in exclude_phrases)
+                        # Combined exclusion check
+                        should_exclude = (
+                            any(phrase in context.lower() for phrase in exclude_phrases) or
+                            any(re.search(pattern, context.lower()) for pattern in exclude_patterns)
+                        )
+                        
                         if not should_exclude:
                             if context_start > 0:
                                 context = f"...{context}"
@@ -264,7 +483,9 @@ def analyze_page_content(url: str, proxy_config: Dict) -> Tuple[bool, Dict[str, 
             'black friday', 
             'cyber monday',
             'sitewide',
-            'everything must go'
+            'everything must go',
+            'no exclusions',
+            'all products'
         ]
         
         is_sitewide = False
@@ -455,12 +676,70 @@ def extract_sale_end_date(text: str) -> str:
                     return full_match.strip()
     return ""
 
+def filter_promotional_patterns(context: str) -> bool:
+    """Return False if context contains unwanted promotional patterns
+    Originally from dataCleaning.py"""
+    
+    # Check for navigation menu items
+    nav_keywords = [
+        'gift card',
+        'e-gift card', 
+        'products',
+        'accessories',
+        'all sale',
+        'best sellers',
+        'gifts for him',
+        'gifts for her',
+        'trending',
+        'products under'
+    ]
+    
+    # Separate gender keywords
+    gender_keywords = ['womens', "women's", 'mens', "men's"]
+    
+    context_lower = context.lower()
+    
+    # Count navigation keywords (excluding gender)
+    nav_keyword_count = sum(1 for keyword in nav_keywords if keyword in context_lower)
+    gender_keyword_count = sum(1 for keyword in gender_keywords if keyword in context_lower)
+    
+    if (nav_keyword_count + gender_keyword_count) >= 3 and nav_keyword_count >= 1:
+        return False
+    
+    patterns = [
+        r'friends?\s*(?:&|and)\s*family',
+        r'buy\s*\d+[^.]*get\s*\d+',
+        r'buy\s*(?:\d+|two|three|four|five)\s*(?:or\s*more)?[^.]*get\s*\d+%?\s*off',
+        r'buy\s*(?:\d+|two|three|four|five)\s*(?:or\s*more)?[^.]*and\s*(?:get|receive)\s*\d+%?\s*off',
+        r'buy\s*(?:\d+|two|three|four|five)\s*(?:or\s*more)?\s*(?:of|pieces?|items?|[a-zA-Z\s]+(?:leggings?|shorts?|tops?))[^.]*get\s*\d+%?\s*off',
+        r'sign\s*up[^.]*\d+%\s*off',
+        r'join[^.]*\d+%\s*off',
+        r'subscribe[^.]*\d+%\s*off',
+        r'newsletter.*(?:discount|deal|offer|saving)',
+        r'(?:discount|deal|offer|saving).*newsletter',
+        r'(?:exclusive|special)\s+(?:discount|deal|offer|saving).*(?:member|membership)',
+        r'(?:member|membership).*(?:exclusive|special)\s+(?:discount|deal|offer|saving)',
+        r'download.*(?:discount|deal|offer|saving)',
+        r'(?:discount|deal|offer|saving).*download',
+        r'\d+%\s*off.*(?:next|first)\s*(?:order|purchase)',
+        r'(?:sign|signed)\s*(?:up|me up).*(?:discount|off|news)',
+        r'(?:free|complimentary)\s*shipping.*(?:orders?\s*(?:over|above)?\s*[\$£€]?\d+)',
+        r'\d+%\s*off\s*[+&]\s*free\s*shipping',
+        r'(?:exclusive|latest)\s*(?:discounts?|news|offers?).*(?:sign|email)',
+        r'(?:want|get)\s*(?:emails|news|updates).*(?:\d+%\s*off)',
+        r'(?:sign|subscribe).*(?:emails?|newsletter).*(?:read|updates?)',
+        r'(?:orders?|purchases?|spend).*(?:over|above)?\s*[\$£€]?\d+',
+        r'\d+%\s*off.*(?:orders?|purchases?).*(?:over|above)?\s*[\$£€]?\d+',
+    ]
+    
+    return not any(re.search(pattern, context.lower()) for pattern in patterns)
+
 def main():
     urls = [
         "https://www.gymshark.com"
     ]
-    from_date = "20130126"
-    to_date = "20241230"
+    from_date = "20221225"
+    to_date = "20221229"
     
     # Get proxy list
     proxies = get_proxy_list()
@@ -506,6 +785,13 @@ def main():
     print(f"Snapshots with promotional content: {promo_snapshots}")
     print(f"Skipped snapshots (after finding daily promo): {skipped_snapshots}")
     print(f"Total requests made: {total_snapshots - skipped_snapshots}")
+
+    # Delete checkpoint file after successful completion
+    try:
+        os.remove("checkpoint.json")
+        print("Checkpoint file deleted successfully")
+    except FileNotFoundError:
+        print("No checkpoint file found to delete")
 
 if __name__ == "__main__":
     main()
