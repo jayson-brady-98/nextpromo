@@ -319,21 +319,10 @@ def analyze_page_content(url: str, proxy_config: Dict) -> Tuple[bool, Dict[str, 
         
         # Extract regular text content first
         regular_text = ' '.join(soup.stripped_strings)
-        
-        # Try to extract image text, but continue if it fails
-        try:
-            image_texts = extract_image_text(soup)
-        except Exception as e:
-            print(f"Image text extraction failed, continuing with regular text only: {str(e)}")
-            image_texts = []
-            
-        # Combine texts (will just be regular_text if image extraction failed)
-        text = ' '.join([regular_text] + image_texts)
+        text = regular_text  # Start with just regular text
         text_lower = text.lower()
         
-        # Add end date extraction
-        end_date = extract_sale_end_date(text)
-        
+        # Process regular text first to get initial keyword matches
         keywords = get_promo_keywords()
         keyword_contexts = {}
         
@@ -396,6 +385,7 @@ def analyze_page_content(url: str, proxy_config: Dict) -> Tuple[bool, Dict[str, 
             r'\d+%\s*off.*(?:orders?|purchases?).*(?:over|above)?\s*[\$£€]?\d+'
         ]
 
+        # First pass: analyze regular text content
         for keyword in keywords:
             if keyword.lower() in text_lower:
                 contexts = []
@@ -475,7 +465,30 @@ def analyze_page_content(url: str, proxy_config: Dict) -> Tuple[bool, Dict[str, 
                 
                 if contexts:  # Only add if we have valid contexts after filtering
                     keyword_contexts[keyword] = contexts
-        
+
+        # Only process images if we found multiple keywords in regular text
+        if len(keyword_contexts) >= 2:
+            try:
+                image_texts = extract_image_text(soup)
+                if image_texts:
+                    # Add image text to the full text for additional processing
+                    text = ' '.join([regular_text] + image_texts)
+                    text_lower = text.lower()
+                    
+                    # Second pass: look for additional keywords in image text
+                    for keyword in keywords:
+                        if keyword not in keyword_contexts and keyword.lower() in text_lower:
+                            # ... existing keyword matching logic for new matches ...
+                            if contexts:
+                                keyword_contexts[keyword] = contexts
+            except Exception as e:
+                print(f"Image text extraction failed, continuing with regular text only: {str(e)}")
+
+        # After collecting all keyword_contexts, check if "sale" is the only keyword
+        has_promo = bool(keyword_contexts)
+        if has_promo and len(keyword_contexts) == 1 and 'sale' in keyword_contexts:
+            has_promo = False
+
         # Replace the current sitewide check with this more precise logic
         sitewide_patterns = [
             r'\d+%\s+off\s+everything',
@@ -498,7 +511,10 @@ def analyze_page_content(url: str, proxy_config: Dict) -> Tuple[bool, Dict[str, 
                 if is_sitewide:
                     break
 
-        return bool(keyword_contexts), keyword_contexts, end_date, is_sitewide
+        # Add end date extraction
+        end_date = extract_sale_end_date(text)
+
+        return has_promo, keyword_contexts, end_date, is_sitewide
         
     except Exception as e:
         print(f"Error analyzing {url}: {str(e)}")
