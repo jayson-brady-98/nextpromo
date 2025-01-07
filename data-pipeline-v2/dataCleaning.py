@@ -201,31 +201,37 @@ def clean_data(input_file: str, output_file: str, brand: str, validation_file: s
     # Load and clean data
     raw_data = load_raw_data(input_file)
     
-    # Apply filters sequentially
+    # Apply filters sequentially for promotional data
     promo_only = filter_non_promotional(raw_data)
     multi_context = filter_single_context(promo_only)
     cleaned_data = clean_promo_contexts(multi_context)
     
-    # Create initial rows with all cleaned entries
-    temp_rows = []
-    prophet_rows = []
+    # Create initial rows
+    temp_rows = []  # For regular output file (sales only)
+    prophet_rows = []  # For prophet file (including non-sales)
     
-    # Process each timestamp in cleaned data
+    # Get all timestamps that ended up as valid sales
+    sale_timestamps = set()
     for timestamp, entry in cleaned_data.items():
-        y_value = determine_y_value(entry)
-        if y_value == 1:
-            event = determine_event(entry['promo_contexts'], brand)
-            sitewide = 1 if entry.get('sitewide', False) else 0
-            discount = determine_discount(entry['promo_contexts'])
+        if determine_y_value(entry) == 1:
+            sale_timestamps.add(timestamp)
+    
+    # Process all timestamps from raw data
+    for timestamp, entry in raw_data.items():
+        if timestamp in sale_timestamps:
+            # This is a confirmed sale event
+            event = determine_event(cleaned_data[timestamp]['promo_contexts'], brand)
+            sitewide = 1 if cleaned_data[timestamp].get('sitewide', False) else 0
+            discount = determine_discount(cleaned_data[timestamp]['promo_contexts'])
             
             # Convert timestamp to formatted date
             dt = datetime.strptime(timestamp, '%Y%m%d%H%M%S')
             formatted_date = dt.strftime('%d/%m/%Y')
             
-            # Add to temp_rows
+            # Add to temp_rows (sales only)
             temp_rows.append({
                 'brand': brand,
-                'y': y_value,
+                'y': 1,
                 'sitewide': sitewide,
                 'start_date': formatted_date,
                 'end_date': formatted_date,
@@ -236,11 +242,20 @@ def clean_data(input_file: str, output_file: str, brand: str, validation_file: s
             
             # Add to prophet_rows
             prophet_rows.append({
-                'y': y_value,
+                'y': 1,
                 'snapshot': timestamp,
                 'event': event,
                 'sitewide': sitewide,
                 'discount': discount
+            })
+        else:
+            # This is a non-sale event (either non-promotional or filtered out)
+            prophet_rows.append({
+                'y': 0,
+                'snapshot': timestamp,
+                'event': '',
+                'sitewide': 0,
+                'discount': ''
             })
     
     # Create DataFrames
@@ -250,6 +265,7 @@ def clean_data(input_file: str, output_file: str, brand: str, validation_file: s
     # Save prophet data with reordered columns
     prophet_columns = ['y', 'snapshot', 'event', 'sitewide', 'discount']
     prophet_df = prophet_df[prophet_columns]
+    prophet_df = prophet_df.sort_values('snapshot')  # Sort by timestamp
     prophet_df.to_csv(f'newData/gymshark/p_{brand.lower()}.csv', index=False)
     
     # Create and save aggregated version

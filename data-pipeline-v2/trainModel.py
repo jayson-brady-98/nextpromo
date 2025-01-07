@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 
 # Read the CSV file
-data = pd.read_csv('gymshark_NEW/p_gymshark.csv')
+data = pd.read_csv('newData/gymshark/p_gymshark.csv')
 
 # Create main dataframe for Prophet
 df = pd.DataFrame({
@@ -120,6 +120,6 @@ if 'sitewide' in df.columns:
 forecast = model.predict(future)
 
 # Save predictions
-output_file = 'gymshark_NEW/gymshark_predictions.csv'
+output_file = 'newData/gymshark/gymshark_predictions.csv'
 forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].to_csv(output_file, index=False)
 print(f"Predictions saved to {output_file}")
