@@ -1,0 +1,75 @@
+[
+  {
+    "timestamp": "20180224083137",
+    "url": "http://web.archive.org/web/20180224083137/https://www.industrie.com.au/",
+    "reason_filtered": "Single context",
+    "promo_contexts": {
+      "promotion": [
+        "...RTS ALL SHORTS NEW SHORTS WALK SHORTS SWIM SHORTS PROMOTION SHIRTS ALL SHIRTS NEW SHIRTS SHORT SLEEVE SHIRTS..."
+      ]
+    }
+  },
+  {
+    "timestamp": "20180226095029",
+    "url": "http://web.archive.org/web/20180226095029/https://www.industrie.com.au/",
+    "reason_filtered": "Single context",
+    "promo_contexts": {
+      "promotion": [
+        "...RTS ALL SHORTS NEW SHORTS WALK SHORTS SWIM SHORTS PROMOTION SHIRTS ALL SHIRTS NEW SHIRTS SHORT SLEEVE SHIRTS..."
+      ]
+    }
+  },
+  {
+    "timestamp": "20180311010116",
+    "url": "http://web.archive.org/web/20180311010116/https://www.industrie.com.au/",
+    "reason_filtered": "Single context",
+    "promo_contexts": {
+      "promotion": [
+        "...RTS ALL SHORTS NEW SHORTS WALK SHORTS SWIM SHORTS PROMOTION SHIRTS ALL SHIRTS NEW SHIRTS SHORT SLEEVE SHIRTS..."
+      ]
+    }
+  },
+  {
+    "timestamp": "20180316104125",
+    "url": "http://web.archive.org/web/20180316104125/https://www.industrie.com.au/",
+    "reason_filtered": "Single context",
+    "promo_contexts": {
+      "promotion": [
+        "...RTS ALL SHORTS NEW SHORTS WALK SHORTS SWIM SHORTS PROMOTION SHIRTS ALL SHIRTS NEW SHIRTS SHORT SLEEVE SHIRTS..."
+      ]
+    }
+  },
+  {
+    "timestamp": "20200518010837",
+    "url": "http://web.archive.org/web/20200518010837/https://www.industrie.com.au/",
+    "reason_filtered": "Single context",
+    "promo_contexts": {
+      "outlet": [
+        "...ow Denim New Fits shop now Winter Essentials SHOP OUTLET Winter Essentials SHOP OUTLET New Arrivals SHOP N...",
+        "...ter Essentials SHOP OUTLET Winter Essentials SHOP OUTLET New Arrivals SHOP NOW New Arrivals SHOP NOW CONNE..."
+      ]
+    }
+  },
+  {
+    "timestamp": "20200527035916",
+    "url": "http://web.archive.org/web/20200527035916/https://www.industrie.com.au/",
+    "reason_filtered": "Single context",
+    "promo_contexts": {
+      "outlet": [
+        "...ow Denim New Fits shop now Winter Essentials SHOP OUTLET Winter Essentials SHOP OUTLET New Arrivals SHOP N...",
+        "...ter Essentials SHOP OUTLET Winter Essentials SHOP OUTLET New Arrivals SHOP NOW New Arrivals SHOP NOW CONNE..."
+      ]
+    }
+  },
+  {
+    "timestamp": "20200527035948",
+    "url": "http://web.archive.org/web/20200527035948/https://www.industrie.com.au",
+    "reason_filtered": "Single context",
+    "promo_contexts": {
+      "outlet": [
+        "...ow Denim New Fits shop now Winter Essentials SHOP OUTLET Winter Essentials SHOP OUTLET New Arrivals SHOP N...",
+        "...ter Essentials SHOP OUTLET Winter Essentials SHOP OUTLET New Arrivals SHOP NOW New Arrivals SHOP NOW CONNE..."
+      ]
+    }
+  }
+]

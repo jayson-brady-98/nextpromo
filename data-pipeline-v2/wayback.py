@@ -68,7 +68,7 @@ def get_promo_keywords() -> List[str]:
         # Add outlet related keywords
         'outlet', 'outlet sale', 'men\'s outlet', 'women\'s outlet',
         # Stock availability indicators
-        'while stocks last', 'while stock lasts'
+        'while stocks last', 'while stock lasts', 'stocktake sale'
     ]
 
 def is_in_navigation(element) -> bool:
@@ -355,7 +355,22 @@ def analyze_page_content(url: str, proxy_config: Dict) -> Tuple[bool, Dict[str, 
             
             # Wayback machine text
             'internet archive',
-            'wayback machine'
+            'wayback machine',
+            
+            # Subscription/recurring related
+            'subscription discount',
+            'recurring discount',
+            'monthly discount',
+            'annual discount',
+            'yearly discount',
+            'subscription offer',
+            'subscription savings',
+            'subscription price',
+            'subscription plan',
+            'auto-renewal',
+            'auto renewal',
+            'subscription benefits',
+            'membership benefits',
         ]
         
         # Regex patterns to exclude
@@ -385,7 +400,16 @@ def analyze_page_content(url: str, proxy_config: Dict) -> Tuple[bool, Dict[str, 
             
             # Threshold-based offers
             r'(?:orders?|purchases?|spend).*(?:over|above)?\s*[\$£€]?\d+',
-            r'\d+%\s*off.*(?:orders?|purchases?).*(?:over|above)?\s*[\$£€]?\d+'
+            r'\d+%\s*off.*(?:orders?|purchases?).*(?:over|above)?\s*[\$£€]?\d+',
+            
+            # Subscription/recurring related patterns
+            r'subscribe.*(?:save|discount|off)',
+            r'subscription.*(?:save|discount|off)',
+            r'recurring.*(?:discount|savings|price)',
+            r'\d+%\s*off.*(?:subscription|recurring)',
+            r'(?:monthly|annual|yearly).*(?:subscription|plan).*(?:discount|savings|off)',
+            r'auto[\s-]renew.*(?:discount|savings|off)',
+            r'(?:save|discount|off).*(?:when|with).*subscription',
         ]
 
         # First pass: analyze regular text content
@@ -754,9 +778,9 @@ def filter_promotional_patterns(context: str) -> bool:
 
 def main():
     urls = [
-        "https://www.gymshark.com"
+        "https://www.patagonia.com"
     ]
-    from_date = "20130412"
+    from_date = "20140101"
     to_date = "20241231"
     
     # Get proxy list

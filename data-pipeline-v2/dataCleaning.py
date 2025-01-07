@@ -3,7 +3,7 @@ import csv
 import re
 from typing import Dict, List
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 
 def load_raw_data(filename: str) -> Dict:
     with open(filename, 'r') as f:
@@ -145,7 +145,7 @@ def determine_event(promo_contexts: Dict, brand: str = '') -> str:
     major_sale_keywords = [
         "afterpay day", "boxing day", "flash sale", "singles day",
         "international womens day", "end of season", "mid season",
-        "mid season sale",
+        "mid season sale", "stocktake sale",
         "eofy", "end of financial year", "birthday sale", "blackout",
         "labour day", "labor day", "4th of july", "fourth of july", 'hauliday',
         "friends and family", "outlet", "outlet sale", "men's outlet", "women's outlet"
@@ -210,6 +210,7 @@ def clean_data(input_file: str, output_file: str, brand: str, validation_file: s
     temp_rows = []
     prophet_rows = []
     
+    # Process each timestamp in cleaned data
     for timestamp, entry in cleaned_data.items():
         y_value = determine_y_value(entry)
         if y_value == 1:
@@ -217,11 +218,11 @@ def clean_data(input_file: str, output_file: str, brand: str, validation_file: s
             sitewide = 1 if entry.get('sitewide', False) else 0
             discount = determine_discount(entry['promo_contexts'])
             
-            # Convert timestamp for aggregated file
+            # Convert timestamp to formatted date
             dt = datetime.strptime(timestamp, '%Y%m%d%H%M%S')
             formatted_date = dt.strftime('%d/%m/%Y')
             
-            # Data for aggregated file
+            # Add to temp_rows
             temp_rows.append({
                 'brand': brand,
                 'y': y_value,
@@ -233,7 +234,7 @@ def clean_data(input_file: str, output_file: str, brand: str, validation_file: s
                 'snapshot': timestamp
             })
             
-            
+            # Add to prophet_rows
             prophet_rows.append({
                 'y': y_value,
                 'snapshot': timestamp,
@@ -249,7 +250,7 @@ def clean_data(input_file: str, output_file: str, brand: str, validation_file: s
     # Save prophet data with reordered columns
     prophet_columns = ['y', 'snapshot', 'event', 'sitewide', 'discount']
     prophet_df = prophet_df[prophet_columns]
-    prophet_df.to_csv(f'p_{brand.lower()}.csv', index=False)
+    prophet_df.to_csv(f'newData/gymshark/p_{brand.lower()}.csv', index=False)
     
     # Create and save aggregated version
     aggregated_df = aggregate_sales(df)
@@ -336,7 +337,7 @@ def determine_y_value(row):
         "black friday", "cyber monday", "afterpay day", "boxing day", 
         "flash sale", "summer sale", "winter sale", "singles day",
         "international womens day", "end of season", "mid season",
-        "mid season sale",
+        "mid season sale", "stocktake sale",
         "eofy", "end of financial year", "birthday sale", "blackout",
         "labour day", "labor day", "4th of july", "fourth of july", 'hauliday',
         "friends and family", "outlet", "outlet sale", "men's outlet", "women's outlet"
@@ -507,7 +508,7 @@ def aggregate_sales(df):
     # Sort by datetime column before converting to string
     result_df = result_df.sort_values('start_dt')
     
-    # Convert dates back to string format
+    # Convert dates back to string formatI
     result_df['start_date'] = result_df['start_dt'].dt.strftime('%d/%m/%Y')
     result_df['end_date'] = result_df['end_dt'].dt.strftime('%d/%m/%Y')
     
@@ -517,8 +518,8 @@ def aggregate_sales(df):
     return result_df[['brand', 'y', 'event', 'sitewide', 'discount', 'start_date', 'end_date', 'snapshot']]
 
 if __name__ == "__main__":
-    input_file = "gymsharkRaw.json"
-    output_file = "gymsharkCleaned.csv"
-    validation_file = "gymsharkForReview.json"
+    input_file = "newData/gymshark/gymsharkRaw.json"
+    output_file = "newData/gymshark/gymsharkPrevSales.csv"
+    validation_file = "newData/gymshark/gymsharkReview.json"
     brand = "Gymshark"
     clean_data(input_file, output_file, brand, validation_file)

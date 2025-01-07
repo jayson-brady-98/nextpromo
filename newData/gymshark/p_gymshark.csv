@@ -8,22 +8,6 @@ y,snapshot,event,sitewide,discount
 1,20170708130727,Summer/Winter Sale,0,up to 50% off
 1,20170708213356,Summer/Winter Sale,0,up to 50% off
 1,20170709151039,Summer/Winter Sale,0,up to 50% off
-1,20171120184507,Blackout,1,up to 50% off
-1,20171121103221,Blackout,1,up to 50% off
-1,20171121104550,Blackout,1,up to 50% off
-1,20171122105645,Blackout,1,up to 50% off
-1,20171123105600,Blackout,1,up to 50% off
-1,20171124105530,Blackout,1,up to 50% off
-1,20171124114845,Blackout,1,up to 50% off
-1,20171125105741,Blackout,1,up to 50% off
-1,20171126110044,Blackout,1,up to 50% off
-1,20171127105624,Blackout,1,up to 50% off
-1,20180215105512,Outlet Sale,0,up to 50% off
-1,20180216105505,Outlet Sale,0,up to 50% off
-1,20180217131208,Outlet Sale,0,up to 50% off
-1,20180219130256,Outlet Sale,0,up to 50% off
-1,20180221105225,Outlet Sale,0,up to 50% off
-1,20180222105502,Outlet Sale,0,up to 50% off
 1,20181121064634,Blackout,1,up to 70% off
 1,20181123161737,Blackout,1,up to 70% off
 1,20181123172640,Blackout,1,up to 70% off
@@ -40,8 +24,8 @@ y,snapshot,event,sitewide,discount
 1,20191129084003,Black Friday,1,up to 50% off
 1,20191201110405,Black Friday,1,up to 50% off
 1,20191202211114,Black Friday,1,up to 50% off
-1,20200317074504,,1,up to 30% off
-1,20200318110758,Generic Sale,1,up to 30% off
+1,20200317074504,Outlet,1,up to 30% off
+1,20200318110758,Outlet,1,up to 30% off
 1,20200320053049,Afterpay Day,1,up to 30% off
 1,20200322070458,Afterpay Day,1,up to 30% off
 1,20200323082536,Afterpay Day,1,up to 30% off
@@ -57,8 +41,6 @@ y,snapshot,event,sitewide,discount
 1,20201126171013,Black Friday,1,up to 30% off
 1,20201126172500,Black Friday,1,up to 30% off
 1,20201127221834,Black Friday,1,up to 30% off
-1,20210302143342,Hauliday,0,15% off
-1,20210303000854,Hauliday,0,15% off
 1,20210615060135,Generic Sale,0,up to 50% off
 1,20211118190111,Black Friday,1,up to 70% off
 1,20211118190824,Black Friday,1,up to 70% off
@@ -76,20 +58,6 @@ y,snapshot,event,sitewide,discount
 1,20211126194911,Black Friday,1,up to 70% off
 1,20211128180020,Black Friday,1,up to 70% off
 1,20211129173650,Cyber Monday,1,up to 70% off
-1,20220318011903,Family Sale,0,30% off
-1,20220318092815,Family Sale,0,30% off
-1,20220319024447,Family Sale,0,30% off
-1,20220319100427,Family Sale,0,30% off
-1,20220319195957,Family Sale,0,30% off
-1,20220319215856,Family Sale,0,30% off
-1,20220320034934,Family Sale,0,30% off
-1,20220320151603,Family Sale,0,30% off
-1,20220320195258,Family Sale,0,30% off
-1,20220320232503,Family Sale,0,30% off
-1,20220321200445,Family Sale,0,30% off
-1,20220322040115,Family Sale,0,30% off
-1,20220322075011,Family Sale,0,30% off
-1,20220322141544,Family Sale,0,30% off
 1,20220422121411,,0,30% off
 1,20220423110647,,0,30% off
 1,20220423135512,,0,30% off
@@ -130,7 +98,7 @@ y,snapshot,event,sitewide,discount
 1,20221130102142,Cyber Monday,1,up to 60% off
 1,20221201114118,Cyber Monday,1,up to 60% off
 1,20221201150907,Cyber Monday,1,up to 60% off
-1,20221227081852,Summer/Winter Sale,0,30% off
+1,20221227081852,,0,30% off
 1,20221228024307,,0,up to 60% off
 1,20221229120050,,0,up to 60% off
 1,20221231081659,,0,up to 60% off
@@ -209,7 +177,7 @@ y,snapshot,event,sitewide,discount
 1,20240120215015,,0,20% off
 1,20240127232022,,1,20% off
 1,20240203154339,,1,20% off
-1,20240217184141,,0,20% off
+1,20240217184141,Outlet,0,20% off
 1,20240222120405,,1,20% off
 1,20240226230131,,1,20% off
 1,20240228183231,,1,20% off
@@ -273,6 +241,7 @@ y,snapshot,event,sitewide,discount
 1,20241203073513,Black Friday,1,up to 70% off
 1,20241204182203,Black Friday,1,up to 70% off
 1,20241205143831,Black Friday,1,up to 70% off
+1,20241212103823,Outlet,0,50% off
 1,20241224193526,Summer/Winter Sale,0,up to 60% off
 1,20241224203435,Summer/Winter Sale,0,up to 60% off
 1,20241225102614,Summer/Winter Sale,0,up to 60% off
