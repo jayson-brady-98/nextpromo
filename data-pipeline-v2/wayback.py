@@ -778,7 +778,7 @@ def filter_promotional_patterns(context: str) -> bool:
 
 def main():
     urls = [
-        "https://www.patagonia.com"
+        "https://www.patagonia.com.au"
     ]
     from_date = "20140101"
     to_date = "20241231"

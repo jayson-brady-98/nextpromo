@@ -22,20 +22,35 @@ def filter_promotional_patterns(context: str) -> bool:
     
     # Check for navigation menu items
     nav_keywords = [
-        'gift card',
-        'e-gift card', 
-        'products',
-        'accessories',
-        'all sale',
-        'best sellers',
-        'gifts for him',
-        'gifts for her',
-        'trending',
-        'products under'
+        'gift card', 'e-gift card', 'products', 'accessories', 'all sale', 'best sellers',
+        'gifts for him', 'gifts for her', 'trending', 'products under', 'tops', 'bottoms',
+        'dresses', 'skirts', 'pants', 'jeans', 'shorts', 'leggings', 'activewear',
+        'outerwear', 'coats', 'jackets', 'blazers', 'sweaters', 'sweatshirts', 'hoodies',
+        'cardigans', 'shirts', 'blouses', 't-shirts', 'tank tops', 'camisoles', 'bodysuits',
+        'jumpsuits', 'rompers', 'swimwear', 'bikinis', 'one-pieces', 'cover-ups', 'lingerie',
+        'bras', 'underwear', 'sleepwear', 'pajamas', 'robes', 'socks', 'tights', 'stockings',
+        'suits', 'vests', 'knitwear', 'denim', 'athleisure', 'sportswear', 'workout clothes',
+        'gym wear', 'yoga clothes', 'running gear', 'loungewear', 'casual wear', 'formal wear',
+        'business wear', 'evening wear', 'party wear', 'beachwear', 'resort wear', 'winter wear',
+        'summer clothes', 'spring collection', 'fall collection', 'seasonal wear', 'basics',
+        'essentials', 'coordinates', 'matching sets', 'two-piece sets', 'three-piece sets',
+        'tunics', 'ponchos', 'shawls', 'scarves', 'belts', 'gloves', 'mittens', 'hats', 'caps',
+        'beanies', 'headwear', 'footwear', 'shoes', 'boots', 'sandals', 'sneakers', 'slippers',
+        'heels', 'flats', 'loafers', 'oxfords', 'mules', 'espadrilles', 'socks', 'gear',
+        'hats', 'singlets'
     ]
     
-    # Separate gender keywords
-    gender_keywords = ['womens', "women's", 'mens', "men's"]
+    # Separate gender keywords with their prefixes
+    gender_base_keywords = ['womens', "women's", 'mens', "men's", 'baby', 'kids', 'teens']
+    gender_prefixes = ['shop', 'sale', 'new', 'all']
+    
+    # Generate full list of gender keywords including prefixed versions
+    gender_keywords = []
+    for keyword in gender_base_keywords:
+        gender_keywords.append(keyword)  # Add base keyword
+        # Add prefixed versions
+        for prefix in gender_prefixes:
+            gender_keywords.append(f"{prefix} {keyword}")
     
     context_lower = context.lower()
     
@@ -197,9 +212,22 @@ def determine_discount(promo_contexts: Dict) -> str:
     
     return ""  # Return empty string if no discount found
 
-def clean_data(input_file: str, output_file: str, brand: str, validation_file: str):
+class DataPaths:
+    def __init__(self, brand: str):
+        self.brand = brand.lower()
+        self.brand_dir = f"newData/{self.brand}"
+        
+        # Input files
+        self.raw_data = f"{self.brand_dir}/{self.brand}Raw.json"
+        
+        # Output files
+        self.sales_data = f"{self.brand_dir}/{self.brand}PrevSales.csv"
+        self.prophet_data = f"{self.brand_dir}/p_{self.brand}.csv"
+        self.validation_data = f"{self.brand_dir}/{self.brand}Review.json"
+
+def clean_data(paths: DataPaths, brand: str):
     # Load and clean data
-    raw_data = load_raw_data(input_file)
+    raw_data = load_raw_data(paths.raw_data)
     
     # Apply filters sequentially for promotional data
     promo_only = filter_non_promotional(raw_data)
@@ -266,16 +294,16 @@ def clean_data(input_file: str, output_file: str, brand: str, validation_file: s
     prophet_columns = ['y', 'snapshot', 'event', 'sitewide', 'discount']
     prophet_df = prophet_df[prophet_columns]
     prophet_df = prophet_df.sort_values('snapshot')  # Sort by timestamp
-    prophet_df.to_csv(f'newData/gymshark/p_{brand.lower()}.csv', index=False)
+    prophet_df.to_csv(paths.prophet_data, index=False)
     
     # Create and save aggregated version
     aggregated_df = aggregate_sales(df)
     columns = ['brand', 'y', 'event', 'sitewide', 'discount', 'start_date', 'end_date', 'snapshot']
     aggregated_df = aggregated_df[columns]
-    aggregated_df.to_csv(output_file, index=False)
+    aggregated_df.to_csv(paths.sales_data, index=False)
     
     # Save filtered entries for validation
-    save_filtered_entries(raw_data, cleaned_data, validation_file)
+    save_filtered_entries(raw_data, cleaned_data, paths.validation_data)
 
 def save_filtered_entries(original_data: Dict, cleaned_data: Dict, output_file: str):
     """Save filtered entries to JSON for validation, excluding non-promotional entries"""
@@ -316,9 +344,6 @@ def save_filtered_entries(original_data: Dict, cleaned_data: Dict, output_file: 
         json.dump(filtered_entries, f, indent=2)
 
 def determine_y_value(row):
-    # Get brand name from the function parameters
-    brand_name = row.get('brand', '').lower()
-    
     # 1. Check sitewide with additional context validation
     if row.get('sitewide', False):
         # Get all contexts for analysis
@@ -345,8 +370,6 @@ def determine_y_value(row):
         cleaned_context = cleaned_context.strip()
         if cleaned_context:  # If there's additional context beyond basic sale keywords
             return 1
-        
-        # If only basic sale keywords were found, continue with regular checks
     
     # 2. Check for major sale keywords in promo_contexts
     major_sale_keywords = [
@@ -359,9 +382,7 @@ def determine_y_value(row):
         "friends and family", "outlet", "outlet sale", "men's outlet", "women's outlet"
     ]
     
-    # Add brand-specific sale keyword if brand is available
-    if brand_name:
-        major_sale_keywords.append(f"{brand_name} sale")
+    # Remove brand-specific sale keyword check
     
     # Combine all promo contexts for easier searching
     all_contexts = []
@@ -534,8 +555,6 @@ def aggregate_sales(df):
     return result_df[['brand', 'y', 'event', 'sitewide', 'discount', 'start_date', 'end_date', 'snapshot']]
 
 if __name__ == "__main__":
-    input_file = "newData/gymshark/gymsharkRaw.json"
-    output_file = "newData/gymshark/gymsharkPrevSales.csv"
-    validation_file = "newData/gymshark/gymsharkReview.json"
-    brand = "Gymshark"
-    clean_data(input_file, output_file, brand, validation_file)
+    brand = "Patagonia"
+    paths = DataPaths(brand)
+    clean_data(paths, brand)
