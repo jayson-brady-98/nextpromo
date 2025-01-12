@@ -1,5 +1,19 @@
 [
   {
+    "timestamp": "20161004082237",
+    "url": "http://web.archive.org/web/20161004082237/http://www.industrie.com.au:80/",
+    "reason_filtered": "Contains buy-x-get-y pattern",
+    "promo_contexts": {
+      "sale": [
+        "...ANS KNITS MERINO WOOL HOODIES JACKETS ACCESSORIES SUMMER SALE Sale Currency Australia - $AUD Australia - $AUD E...",
+        "...TS MERINO WOOL HOODIES JACKETS ACCESSORIES SUMMER SALE Sale Currency Australia - $AUD Australia - $AUD E..."
+      ],
+      "summer sale": [
+        "...ANS KNITS MERINO WOOL HOODIES JACKETS ACCESSORIES SUMMER SALE Sale Currency Australia - $AUD Australia - $AUD E..."
+      ]
+    }
+  },
+  {
     "timestamp": "20180224083137",
     "url": "http://web.archive.org/web/20180224083137/https://www.industrie.com.au/",
     "reason_filtered": "Single context",

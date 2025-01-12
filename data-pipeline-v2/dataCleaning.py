@@ -555,6 +555,6 @@ def aggregate_sales(df):
     return result_df[['brand', 'y', 'event', 'sitewide', 'discount', 'start_date', 'end_date', 'snapshot']]
 
 if __name__ == "__main__":
-    brand = "Patagonia"
+    brand = "Industrie"
     paths = DataPaths(brand)
     clean_data(paths, brand)
