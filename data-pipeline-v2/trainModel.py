@@ -5,101 +5,94 @@ from datetime import datetime
 from dataCleaning import DataPaths
 
 def train_model(brand: str):
-    # Initialize paths
+    # Initialize paths and read data
     paths = DataPaths(brand)
-    
-    # Read the CSV file using the paths
     data = pd.read_csv(paths.prophet_data)
     
-    # Create main dataframe for Prophet
+    # Create main dataframe
     df = pd.DataFrame({
         'ds': pd.to_datetime(data['snapshot'].astype(str), format='%Y%m%d%H%M%S'),
         'y': data['y'].astype(int)
     })
     
-    # Initialize and configure model with adjusted seasonality
+    # Create custom holiday dataframe for recurring sales patterns
+    sales_patterns = pd.DataFrame([
+        # Seasonal Sales (June/July and December/January)
+        {'holiday': 'seasonal_sale', 'ds': pd.to_datetime('2023-12-23'), 'lower_window': 0, 'upper_window': 7},  # End of year
+        {'holiday': 'seasonal_sale', 'ds': pd.to_datetime('2023-06-28'), 'lower_window': 0, 'upper_window': 32}, # Mid year
+        {'holiday': 'seasonal_sale', 'ds': pd.to_datetime('2022-12-27'), 'lower_window': 0, 'upper_window': 7},
+        {'holiday': 'seasonal_sale', 'ds': pd.to_datetime('2022-07-23'), 'lower_window': 0, 'upper_window': 2},
+        {'holiday': 'seasonal_sale', 'ds': pd.to_datetime('2021-06-15'), 'lower_window': 0, 'upper_window': 0},
+        {'holiday': 'seasonal_sale', 'ds': pd.to_datetime('2020-06-26'), 'lower_window': 0, 'upper_window': 0},
+        {'holiday': 'seasonal_sale', 'ds': pd.to_datetime('2019-07-04'), 'lower_window': 0, 'upper_window': 0},
+        {'holiday': 'seasonal_sale', 'ds': pd.to_datetime('2024-12-24'), 'lower_window': 0, 'upper_window': 6},
+        
+        # Friends and Family
+        {'holiday': 'friends_and_family', 'ds': pd.to_datetime('2023-03-14'), 'lower_window': 0, 'upper_window': 5},
+        {'holiday': 'friends_and_family', 'ds': pd.to_datetime('2023-06-28'), 'lower_window': 0, 'upper_window': 32},
+        {'holiday': 'friends_and_family', 'ds': pd.to_datetime('2023-08-04'), 'lower_window': 0, 'upper_window': 1},
+        {'holiday': 'friends_and_family', 'ds': pd.to_datetime('2023-08-11'), 'lower_window': 0, 'upper_window': 1},
+        {'holiday': 'friends_and_family', 'ds': pd.to_datetime('2023-08-18'), 'lower_window': 0, 'upper_window': 0},
+        
+        # Other sales patterns
+        {'holiday': 'flash_sale', 'ds': pd.to_datetime('2023-09-04'), 'lower_window': 0, 'upper_window': 0},
+        {'holiday': 'generic_sale', 'ds': pd.to_datetime('2024-06-27'), 'lower_window': 0, 'upper_window': 4},
+        {'holiday': 'outlet_sale', 'ds': pd.to_datetime('2020-03-17'), 'lower_window': 0, 'upper_window': 1},
+        {'holiday': 'outlet_sale', 'ds': pd.to_datetime('2024-02-17'), 'lower_window': 0, 'upper_window': 0},
+    ])
+    
+    # Add biannual seasonal windows
+    seasonal_windows = pd.DataFrame([
+        # Mid-year seasonal window (June-July)
+        *[{'holiday': 'seasonal_window', 'ds': pd.to_datetime(f'2023-06-{day}'), 'lower_window': 0, 'upper_window': 0} for day in range(15, 31)],
+        *[{'holiday': 'seasonal_window', 'ds': pd.to_datetime(f'2023-07-{day}'), 'lower_window': 0, 'upper_window': 0} for day in range(1, 16)],
+        
+        # End-year seasonal window (December-January)
+        *[{'holiday': 'seasonal_window', 'ds': pd.to_datetime(f'2023-12-{day}'), 'lower_window': 0, 'upper_window': 0} for day in range(15, 32)],
+        *[{'holiday': 'seasonal_window', 'ds': pd.to_datetime(f'2024-01-{day}'), 'lower_window': 0, 'upper_window': 0} for day in range(1, 16)],
+    ])
+    
+    # Combine all patterns
+    all_patterns = pd.concat([sales_patterns, seasonal_windows], ignore_index=True)
+    
+    # Initialize model with holidays
     model = Prophet(
-        changepoint_prior_scale=0.0005,  # Adjusted for noise
-        yearly_seasonality=30,  # Increased Fourier terms for yearly seasonality
+        changepoint_prior_scale=0.001,
+        yearly_seasonality=20,
         weekly_seasonality=True,
         daily_seasonality=False,
-        seasonality_prior_scale=15
+        seasonality_prior_scale=10,
+        holidays_prior_scale=20,
+        holidays=all_patterns
     )
     
-    # Add custom seasonality if needed
-    model.add_seasonality(name='quarterly', period=91.25, fourier_order=8)
+    # Add custom seasonality patterns
+    model.add_seasonality(name='biannual', period=182.5, fourier_order=10)
+    model.add_seasonality(name='quarterly', period=91.25, fourier_order=5)
     
-    # Fit model
+    # Create seasonal intensity for training data
+    df['seasonal_intensity'] = ((df['ds'].dt.month.isin([6, 7, 12, 1])) & 
+                               (df['ds'].dt.day >= 15) & 
+                               (df['ds'].dt.day <= 31)).astype(int)
+    
+    # Add regressor before fitting
+    model.add_regressor('seasonal_intensity')
+    
+    # Fit model first
     model.fit(df)
     
-    # Define retail events with their annual dates (month, day)
-    retail_event_dates = {
-        'black_friday': [(11, 24)],  # Needs special handling for "last Friday of November"
-        'cyber_monday': [(11, 27)],  # First Monday after Black Friday
-        'boxing_day': [(12, 26)],
-        'singles_day': [(11, 11)],
-        'international_womens_day': [(3, 8)],
-        'eofy': [(6, 30)],  # End of Financial Year
-        'labor_day': [(9, 1)],  # Needs special handling for "first Monday in September"
-        'summer_winter_sale': [
-            (12, 26), (12, 27), (12, 28), (12, 29), (12, 30),  # Summer sale dates
-            (7, 1), (7, 2), (7, 3), (7, 4), (7, 5)  # Winter sale dates
-        ],
-        # Add other events as needed
-    }
-
-    # Create future dataframe for 365 days
+    # Now create future dataframe after model is fit
     future = model.make_future_dataframe(periods=365)
     
-    # Define retail events list from the keys
-    retail_events = list(retail_event_dates.keys())
+    # Add seasonal intensity to future data
+    future['seasonal_intensity'] = ((future['ds'].dt.month.isin([6, 7, 12, 1])) & 
+                                  (future['ds'].dt.day >= 15) & 
+                                  (future['ds'].dt.day <= 31)).astype(int)
     
-    # Initialize all event columns to 0
-    for event in retail_events:
-        event_key = event.lower().replace(' ', '_')
-        future[event_key] = 0
-        
-        # If we have defined dates for this event
-        if event_key in retail_event_dates:
-            # For each date pattern in the event
-            for month, day in retail_event_dates[event_key]:
-                # Set to 1 where month and day match
-                future.loc[
-                    (future['ds'].dt.month == month) & 
-                    (future['ds'].dt.day == day),
-                    event_key
-                ] = 1
-
-    # Special handling for Black Friday (last Friday of November)
-    future.loc[
-        (future['ds'].dt.month == 11) &  # November
-        (future['ds'].dt.day >= 23) &    # Can't be earlier than 23rd
-        (future['ds'].dt.day <= 29) &    # Can't be later than 29th
-        (future['ds'].dt.dayofweek == 4), # Friday
-        'black_friday'
-    ] = 1
-
-    # Special handling for Cyber Monday (3 days after Black Friday)
-    future.loc[
-        (future['ds'].dt.month == 11) &  # November
-        (future['ds'].dt.day >= 26) &    # Can't be earlier than 26th
-        (future['ds'].dt.day <= 30) &    # Can't be later than 30th
-        (future['ds'].dt.dayofweek == 0), # Monday
-        'cyber_monday'
-    ] = 1
-
-    # Special handling for American Labor Day (first Monday in September)
-    future.loc[
-        (future['ds'].dt.month == 9) &   # September
-        (future['ds'].dt.day <= 7) &     # Can't be later than 7th
-        (future['ds'].dt.dayofweek == 0), # Monday
-        'labor_day'
-    ] = 1
-
     # Make predictions
     forecast = model.predict(future)
     
-    # Save predictions using proper paths
+    # Save predictions
     forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].to_csv(
         os.path.join(paths.brand_dir, f'{paths.brand}_predictions.csv'), 
         index=False
@@ -107,5 +100,5 @@ def train_model(brand: str):
     print(f"Predictions saved to {paths.brand_dir}/{paths.brand}_predictions.csv")
 
 if __name__ == "__main__":
-    brand = "Industrie"
+    brand = "Gymshark"
     train_model(brand)

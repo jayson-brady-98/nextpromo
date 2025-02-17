@@ -1,0 +1,18 @@
+[
+  {
+    "timestamp": "20201126143130",
+    "url": "http://web.archive.org/web/20201126143130/https://www.skwosh.com.au/",
+    "reason_filtered": "Contains buy-x-get-y pattern",
+    "promo_contexts": {
+      "sale": [
+        "...es Kids Mens + - Shorts Tops Womens + - Swim Tops Black Friday Sale AUD $ CAD $ EUR \u20ac GBP \u00a3 HKD $ SGD $ USD $ ( $0.00...",
+        "...es Kids Mens + - Shorts Tops Womens + - Swim Tops Black Friday Sale AUD $ CAD $ EUR \u20ac GBP \u00a3 HKD $ SGD $ USD $ ( $0.00...",
+        "...+ - Shorts Tops Womens + - Swim Tops Black Friday Sale AUD $ CAD $ EUR \u20ac GBP \u00a3 HKD $ SGD $ USD $ ( $0.00..."
+      ],
+      "black friday": [
+        "...es Kids Mens + - Shorts Tops Womens + - Swim Tops Black Friday Sale AUD $ CAD $ EUR \u20ac GBP \u00a3 HKD $ SGD $ USD $ (...",
+        "...es Kids Mens + - Shorts Tops Womens + - Swim Tops Black Friday Sale AUD $ CAD $ EUR \u20ac GBP \u00a3 HKD $ SGD $ USD $ (..."
+      ]
+    }
+  }
+]

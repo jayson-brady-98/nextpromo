@@ -213,17 +213,19 @@ def determine_discount(promo_contexts: Dict) -> str:
     return ""  # Return empty string if no discount found
 
 class DataPaths:
-    def __init__(self, brand: str):
-        self.brand = brand.lower()
-        self.brand_dir = f"newData/{self.brand}"
+    def __init__(self, folder_name: str, file_name: str, display_name: str = None):
+        self.folder_name = folder_name  # e.g. "whiteFox"
+        self.file_name = file_name      # e.g. "whitefoxboutique"
+        self.display_name = display_name or file_name  # Name to use in output data
         
         # Input files
-        self.raw_data = f"{self.brand_dir}/{self.brand}Raw.json"
+        self.brand_dir = f"newData/{self.folder_name}"
+        self.raw_data = f"{self.brand_dir}/{self.file_name}Raw.json"
         
         # Output files
-        self.sales_data = f"{self.brand_dir}/{self.brand}PrevSales.csv"
-        self.prophet_data = f"{self.brand_dir}/p_{self.brand}.csv"
-        self.validation_data = f"{self.brand_dir}/{self.brand}Review.json"
+        self.sales_data = f"{self.brand_dir}/{self.file_name}PrevSales.csv"
+        self.prophet_data = f"{self.brand_dir}/p_{self.file_name}.csv"
+        self.validation_data = f"{self.brand_dir}/{self.file_name}Review.json"
 
 def clean_data(paths: DataPaths, brand: str):
     # Load and clean data
@@ -555,6 +557,9 @@ def aggregate_sales(df):
     return result_df[['brand', 'y', 'event', 'sitewide', 'discount', 'start_date', 'end_date', 'snapshot']]
 
 if __name__ == "__main__":
-    brand = "Industrie"
-    paths = DataPaths(brand)
-    clean_data(paths, brand)
+    folder_name = "nutra"  # Directory name in newData/
+    file_name = "nutraorganics"  # Base name of your json file (without 'Raw.json')
+    display_name = "Nutra Organics"  # Optional: How you want the brand to appear in output
+    
+    paths = DataPaths(folder_name, file_name, display_name)
+    clean_data(paths, display_name or file_name)
